@@ -1,0 +1,59 @@
+{
+    "baseline": {
+        "train": {
+            "model_name": "Baseline model",
+            "random_seed": 42,
+            "dataset_split": "train",
+            "n_samples": 128051,
+            "positive_class": 1,
+            "accuracy": 1.0,
+            "balanced_accuracy": 1.0,
+            "precision_positive": 1.0,
+            "recall_positive": 1.0,
+            "f1_positive": 1.0,
+            "average_precision": 1.0,
+            "confusion_matrix": [
+                [
+                    656,
+                    0
+                ],
+                [
+                    0,
+                    127395
+                ]
+            ],
+            "classification_report": "              precision    recall  f1-score   support\n\n           0       1.00      1.00      1.00       656\n           1       1.00      1.00      1.00    127395\n\n    accuracy                           1.00    128051\n   macro avg       1.00      1.00      1.00    128051\nweighted avg       1.00      1.00      1.00    128051\n"
+        },
+        "test": {
+            "model_name": "Baseline model",
+            "random_seed": 42,
+            "dataset_split": "test",
+            "n_samples": 32013,
+            "positive_class": 1,
+            "accuracy": 1.0,
+            "balanced_accuracy": 1.0,
+            "precision_positive": 1.0,
+            "recall_positive": 1.0,
+            "f1_positive": 1.0,
+            "average_precision": 1.0,
+            "confusion_matrix": [
+                [
+                    164,
+                    0
+                ],
+                [
+                    0,
+                    31849
+                ]
+            ],
+            "classification_report": "              precision    recall  f1-score   support\n\n           0       1.00      1.00      1.00       164\n           1       1.00      1.00      1.00     31849\n\n    accuracy                           1.00     32013\n   macro avg       1.00      1.00      1.00     32013\nweighted avg       1.00      1.00      1.00     32013\n"
+        }
+    },
+    "dataset_limitations": [
+        "The dataset may not represent the full population or future production data.",
+        "Class imbalance may make accuracy misleading; balanced accuracy, recall, F1, and average precision are also reported.",
+        "The train/test split is a single split; results may vary with a different random seed or cross-validation fold.",
+        "The baseline uses only the features available in this dataset and may omit important predictive variables.",
+        "Predictions should not be used for high-stakes decisions without domain review, fairness checks, and monitoring."
+    ]
+}
