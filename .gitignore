@@ -1,6 +1,17 @@
+
+# Python
 __pycache__/
-*.pyc
+.venv/
+*.py[cod]
+
+# Kaggle and local data
+data/
+*.pickle
+*.pkl
+
+# Temporary outputs
 .ipynb_checkpoints/
-venv/
-env/
-.DS_Store
+*.log
+
+# Local secrets
+.env
