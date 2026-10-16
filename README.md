@@ -48,8 +48,8 @@ ARES/
 ├── models/
 │   └── model.joblib
 ├── notebooks/
-│   ├── 01_ares_model_development.ipynb
-│   └── 02_ares_model_verification.ipynb
+│   ├── ares_model_development.ipynb
+│   └── ares_model_verification.ipynb
 ├── tests/
 │   ├── test_feature_extractor.py
 │   └── images/
