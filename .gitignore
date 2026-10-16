@@ -1,17 +1,25 @@
 
-# Python
-__pycache__/
+# Python virtual environment
 .venv/
+venv/
+
+# Python cache
+__pycache__/
 *.py[cod]
 
-# Kaggle and local data
-data/
-*.pickle
-*.pkl
-
-# Temporary outputs
+# Jupyter temporary files
 .ipynb_checkpoints/
+
+# Local environment variables and secrets
+.env
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Temporary logs
 *.log
 
-# Local secrets
-.env
+# Local dataset files — review before committing
+data/*
+!data/.gitkeep
