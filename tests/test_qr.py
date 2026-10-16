@@ -11,7 +11,7 @@ from pathlib import Path
 from qr_utils import decode_qr_code
 
 # Define the path to the saved benign QR-code image
-p = Path("trials/results/sample_benign_qr_code02.png")
+p = Path("images/sample_benign_qr_code02.png")
 
 # Read the image in grayscale
 img = cv2.imread(str(p), cv2.IMREAD_GRAYSCALE)
