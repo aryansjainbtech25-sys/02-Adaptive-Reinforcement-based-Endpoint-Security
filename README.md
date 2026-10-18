@@ -85,7 +85,7 @@ See `requirements.txt` for the project's Python dependencies.
 ### 1. Clone the repository
 
 ```bash
-git clone <YOUR_GITHUB_REPOSITORY_URL>
+git clone "https://github.com/aryansjainbtech25-sys/02-Adaptive-Reinforcement-based-Endpoint-Security.git"
 cd ARES
 ```
 
