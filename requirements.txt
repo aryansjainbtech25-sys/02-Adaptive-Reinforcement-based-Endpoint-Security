@@ -1,8 +1,6 @@
-pandas
-numpy
-scikit-learn
-joblib
-opencv-python
-matplotlib
-streamlit>=1.40
-pytest
+pandas: 3.0.6
+numpy: 2.5.4
+scikit-learn: 1.6.1
+joblib: 1.6.0
+opencv: 5.0.0
+streamlit: 1.66.0
