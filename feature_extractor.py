@@ -34,6 +34,15 @@ suspicious_words = [
     "confirm", "wallet", "payment"
 ]
 
+# Compiling a regular expression pattern of suspicious_words
+suspicious_pattern = re.compile(
+    r"\b(?:" + "|". join(re.escape(suspicious_word) for suspicious_word in suspicious_words) + r")\b"
+    # \b is a word boundary
+    # (?: groups alternatives without saving them
+    # re.escape() escapes special regex characters
+    # join() joins the escaped words with | i.e., "or"
+)
+
 # Defining a function to calculate the Shannon entropy (randomness of a piece of text) in a URL
 def calculate_shannon_entropy(url: str) -> float:
     # Checking if url is empty and returning 0.0 if it is
@@ -113,12 +122,7 @@ def extract_url_features(URL: str) -> dict:
     has_https = 1 if url.startswith("https://") else 0
 
     # Counting the occurrences of suspicious words in the URL for feature extraction
-    suspicious_word_count = sum(
-        # Using re.findall to find all occurrences of each suspicious word in the URL and summing them up
-        len(re.findall(rf"\b{suspicious_word}\b", url)) for suspicious_word in suspicious_words
-        # r signifies a raw string, which treats backslashes as literal characters, and \b is a word boundary anchor that ensures we only match whole words
-        # re.findall() returns a list of all non-overlapping matches of the pattern in the string
-    )
+    suspicious_word_count = len(suspicious_pattern.findall(url))
 
     # Saving all the features in a dictionary for easy access and manipulation
     url_features = {
