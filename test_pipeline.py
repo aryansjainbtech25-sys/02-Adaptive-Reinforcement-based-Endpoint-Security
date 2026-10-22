@@ -8,8 +8,14 @@ from qr_utils import decode_qr_code
 # Importing the extract_url_features function and feature_names list from the feature_extractor module to extract features from URLs
 from feature_extractor import extract_url_features, feature_names
 
+from pathlib import Path
+
 # Sample path to the pre-trained machine learning model used for phishing detection
-model_path = "models/model.joblib"
+project_directory = Path(__file__).resolve().parent
+# __file__ gives current file path
+# resolve() converts it into absolute path
+# parent moves up one folder
+model_path = project_directory / "models" / "model.joblib"
 
 # Defining a function to predict the QR-Code
 def predict_qr_code(image_path: str) -> dict:
