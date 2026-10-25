@@ -1,4 +1,3 @@
-
 # Python virtual environment
 .venv/
 venv/
@@ -23,3 +22,11 @@ Thumbs.db
 # Local dataset files — review before committing
 data/*
 !data/.gitkeep
+
+models/*.joblib
+.venv/
+__pycache__/
+*.pyc
+results/feedback.csv
+results/rl_policy_state.json
+.pytest_cache/
