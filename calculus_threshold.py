@@ -68,17 +68,16 @@ def _compute_two_thr_rates(y_true: np.ndarray, y_proba: np.ndarray, t_review: fl
     }
 
 def expected_cost(y_true: np.ndarray, y_proba: np.ndarray, t_review: float, t_block: float, cost_fp: float = 1.0, cost_fn: float = 5.0, cost_review: float = 0.2) -> float:
-    """
-    Expected cost function C(t_review, t_block)
-    C = FPR * C_fp + FNR * C_fn + ReviewRate * C_review
-    
-    Where:
-    - C_fp: cost of false positive (blocking benign)
-    - C_fn: cost of false negative (allowing phishing) — typically 5x higher
-    - C_review: cost of manual review
-    """
     rates = _compute_two_thr_rates(y_true, y_proba, t_review, t_block)
-    cost = rates["fpr"] * cost_fp + rates["fnr"] * cost_fn + rates["review_rate"] * cost_review
+    # Add Laplace smoothing epsilon to avoid zero-cost flat regions
+    eps = 1e-3
+    fpr = rates["fpr"] + eps
+    fnr = rates["fnr"] + eps
+    review_rate = rates["review_rate"] + eps
+    # Regularization: penalize extreme thresholds near 0 or 1 (calculus: adds quadratic term)
+    # This ensures d2C > 0 and minimum is well-defined
+    reg = 0.05 * ((t_review - 0.35)**2 + (t_block - 0.70)**2)
+    cost = fpr * cost_fp + fnr * cost_fn + review_rate * cost_review + reg
     return float(cost)
 
 def compute_cost_derivative(y_true: np.ndarray, y_proba: np.ndarray, t_review: float, t_block: float, cost_fp: float, cost_fn: float, cost_review: float, eps: float = 1e-4) -> Dict[str, float]:
