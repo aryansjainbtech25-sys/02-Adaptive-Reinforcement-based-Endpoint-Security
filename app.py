@@ -232,9 +232,12 @@ with tab_samples:
     with scol2:
         sample_path = SAMPLE_IMAGES_DIR / sample_meta["file"]
         if sample_path.exists(): st.image(str(sample_path), caption=sample_meta["file"], width=160)
-    if run_sample_btn and sample_path.exists():
-        effective_strict = strict_http_scheme and not override_bare
-        decode_and_store(sample_path.read_bytes(), source_id=f"sample:{sample_meta['file']}:{effective_strict}", strict_scheme=effective_strict, bundle=bundle, agent=agent)
+    if run_sample_btn:
+        if not sample_path.exists():
+            st.error(f"Sample not found: {sample_path}")
+        else:
+            effective_strict = strict_http_scheme and not override_bare
+            decode_and_store(sample_path.read_bytes(), source_id=f"sample:{sample_meta['file']}:{effective_strict}", strict_scheme=effective_strict, bundle=bundle, agent=agent)
 
 with tab_upload:
     uploaded_image = st.file_uploader("Upload a QR-Code image (PNG, JPG, JPEG)", type=IMAGE_FILE_TYPES, accept_multiple_files=False, help=f"Maximum upload size: {MAX_IMAGE_SIZE_MB} MB")
