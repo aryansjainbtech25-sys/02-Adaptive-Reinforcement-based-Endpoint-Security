@@ -8,7 +8,21 @@ ARES is an educational and research prototype developed at **RV University** tha
 
 ## Application Screenshot
 
-![ARES dashboard showing the QR-code phishing detector, sample QR gallery, and adaptive threshold policy](screenshots/ares-dashboard.png)
+<p align="center">
+  <img
+    src="screenshots/ares-dashboard.png"
+    alt="ARES dashboard showing QR-code phishing detection, sample QR gallery, and adaptive threshold policy"
+    width="950"
+  />
+</p>
+
+<p align="center">
+  <em>ARES dashboard — QR-code phishing detection and adaptive risk assessment.</em>
+</p>
+
+---
+
+## System Architecture & Key Capabilities
 
 ## System Architecture & Key Capabilities
 
