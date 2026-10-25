@@ -1,59 +1,88 @@
 {
-    "baseline": {
-        "train": {
-            "model_name": "Baseline model",
-            "random_seed": 42,
-            "dataset_split": "train",
-            "n_samples": 128051,
-            "positive_class": 1,
-            "accuracy": 1.0,
-            "balanced_accuracy": 1.0,
-            "precision_positive": 1.0,
-            "recall_positive": 1.0,
-            "f1_positive": 1.0,
-            "average_precision": 1.0,
-            "confusion_matrix": [
-                [
-                    656,
-                    0
-                ],
-                [
-                    0,
-                    127395
-                ]
-            ],
-            "classification_report": "              precision    recall  f1-score   support\n\n           0       1.00      1.00      1.00       656\n           1       1.00      1.00      1.00    127395\n\n    accuracy                           1.00    128051\n   macro avg       1.00      1.00      1.00    128051\nweighted avg       1.00      1.00      1.00    128051\n"
-        },
-        "test": {
-            "model_name": "Baseline model",
-            "random_seed": 42,
-            "dataset_split": "test",
-            "n_samples": 32013,
-            "positive_class": 1,
-            "accuracy": 1.0,
-            "balanced_accuracy": 1.0,
-            "precision_positive": 1.0,
-            "recall_positive": 1.0,
-            "f1_positive": 1.0,
-            "average_precision": 1.0,
-            "confusion_matrix": [
-                [
-                    164,
-                    0
-                ],
-                [
-                    0,
-                    31849
-                ]
-            ],
-            "classification_report": "              precision    recall  f1-score   support\n\n           0       1.00      1.00      1.00       164\n           1       1.00      1.00      1.00     31849\n\n    accuracy                           1.00     32013\n   macro avg       1.00      1.00      1.00     32013\nweighted avg       1.00      1.00      1.00     32013\n"
-        }
-    },
-    "dataset_limitations": [
-        "The dataset may not represent the full population or future production data.",
-        "Class imbalance may make accuracy misleading; balanced accuracy, recall, F1, and average precision are also reported.",
-        "The train/test split is a single split; results may vary with a different random seed or cross-validation fold.",
-        "The baseline uses only the features available in this dataset and may omit important predictive variables.",
-        "Predictions should not be used for high-stakes decisions without domain review, fairness checks, and monitoring."
-    ]
+  "baseline": {
+    "test": {
+      "split": "GroupShuffleSplit (80/20) by registrable domain; 5-fold GroupKFold isotonic calibration",
+      "model_type": "XGBoost (XGBClassifier) + isotonic calibration \u2014 migrated from RandomForest",
+      "evaluation_scope": "Held-out domain-grouped evaluation on the semi-synthetic constructed dataset",
+      "raw_dataset_summary": {
+        "total_rows": 160064,
+        "null_urls": 0,
+        "benign_rows": 820,
+        "phishing_rows": 159244,
+        "duplicate_urls": 0
+      },
+      "random_seed": 42,
+      "sklearn_version": "1.5.2",
+      "n_train": 17057,
+      "n_train_domains": 5985,
+      "n_test": 5083,
+      "n_test_domains": 1497,
+      "test_phishing_prevalence": 0.7478,
+      "roc_auc": 0.9929,
+      "pr_auc": 0.9976,
+      "brier": 0.0297,
+      "precision": 0.9827,
+      "f1_score": 0.9707,
+      "tpr": 0.959,
+      "fpr": 0.0499,
+      "confusion_matrix": [
+        [
+          1218,
+          64
+        ],
+        [
+          156,
+          3645
+        ]
+      ],
+      "precision_at_prevalence": {
+        "0.5": 0.9505,
+        "0.05": 0.5027,
+        "0.01": 0.1625,
+        "0.001": 0.0189
+      },
+      "xgboost_params": {
+        "objective": "binary:logistic",
+        "base_score": null,
+        "booster": null,
+        "callbacks": null,
+        "colsample_bylevel": null,
+        "colsample_bynode": null,
+        "colsample_bytree": 0.9,
+        "device": null,
+        "early_stopping_rounds": null,
+        "enable_categorical": false,
+        "eval_metric": "logloss",
+        "feature_types": null,
+        "feature_weights": null,
+        "gamma": null,
+        "grow_policy": null,
+        "importance_type": null,
+        "interaction_constraints": null,
+        "learning_rate": 0.05,
+        "max_bin": null,
+        "max_cat_threshold": null,
+        "max_cat_to_onehot": null,
+        "max_delta_step": null,
+        "max_depth": 8,
+        "max_leaves": null,
+        "min_child_weight": 3,
+        "missing": NaN,
+        "monotone_constraints": null,
+        "multi_strategy": null,
+        "n_estimators": 400,
+        "n_jobs": -1,
+        "num_parallel_tree": null,
+        "random_state": 42,
+        "reg_alpha": null,
+        "reg_lambda": null,
+        "sampling_method": null,
+        "scale_pos_weight": 0.5564376311707273,
+        "subsample": 0.9,
+        "tree_method": "hist",
+        "validate_parameters": null,
+        "verbosity": 0
+      }
+    }
+  }
 }
