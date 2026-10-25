@@ -237,4 +237,3 @@ Developed as part of an AIML Semester 3 academic project at **RV University**:
 | 2 | Ashwin Chandrashekar Naik | `1RUA25CSE0090` |
 | 3 | Ashwin Rajesha Bhat | `1RUA25CSE0091` |
 | 4 | Ashwin Subramaniam | `1RUA25CSE0092` |
-```
