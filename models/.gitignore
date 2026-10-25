@@ -1,0 +1,6 @@
+# ARES - ignore large model artifacts
+models/*.joblib
+models/*.joblib.bak
+results/*.bak
+__pycache__/
+.venv/
