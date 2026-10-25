@@ -1,268 +1,187 @@
 # ARES — Adaptive Reinforcement-based Endpoint Security
 
-**QR-Code Phishing Detection using Machine Learning**
+**Offline QR-Code Phishing (Quishing) Risk Analyzer with Calibrated Random Forest & Feedback-Driven Threshold Policy**
 
-ARES is a machine-learning-based prototype designed to identify potentially malicious URLs embedded in QR codes. It decodes a QR-code image, extracts URL-based features, and uses a trained classification model to predict whether the URL is **Benign** or **Phishing**.
+ARES is an educational and research prototype developed at **RV University** that evaluates URLs embedded inside QR codes (**quishing**) using offline lexical and structural analysis. It decodes QR images without visiting or fetching the destination URL, extracts **24 lexical, host, and structural URL features**, estimates phishing probability using a **5-fold Isotonic-Calibrated Random Forest (`CalibratedClassifierCV`)**, and recommends an advisory endpoint action (`Allow`, `Review`, or `Block`) governed by a **feedback-driven threshold controller**.
 
-> **Disclaimer:** ARES is an academic prototype developed for educational and research purposes. Its predictions are not a guarantee of website safety. Do not use it as the sole method for deciding whether a URL is trustworthy.
+> **Important Security Disclaimer:** ARES is an offline lexical URL analyzer, **not** a full Endpoint Detection and Response (EDR) agent, browser sandbox, or live threat-intelligence scanner. A low estimated phishing probability (`Allow` recommendation) **does not guarantee** that a website is safe, and `https://` indicates encrypted network transport rather than domain legitimacy. Never use ARES as the sole basis for trusting an unknown link.
 
-## Table of Contents
+## System Architecture & Key Capabilities
 
-- [Project Overview](#project-overview)
-- [Objectives](#objectives)
-- [System Workflow](#system-workflow)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Dataset](#dataset)
-- [Features Extracted](#features-extracted)
-- [Installation](#installation)
-- [Running the Application](#running-the-application)
-- [Testing](#testing)
-- [Model Evaluation](#model-evaluation)
-- [Limitations](#limitations)
-- [Future Enhancements](#future-enhancements)
-- [Contributors](#contributors)
+1. **Bomb-Safe, Multi-Variant QR Decoding (`qr_utils.py`):**
+   - Verifies image dimensions from file headers before decoding and rejects images exceeding `25,000,000` pixels.
+   - Composites transparent RGBA PNGs onto a white background so dark QR modules remain readable.
+   - Sweeps across native resolution (`scale = 1`, including `3000px` boundary images with `20px` quiet-zone padding), nearest-neighbor upscaling (`2x–10x` for small $21\text{–}69\text{ px}$ dataset matrices), Otsu/adaptive binarization, and inverted (white-on-black) polarities.
+   - Detects multiple QR codes in a single image (`detectAndDecodeMulti`): fails closed in single-code CLI mode (`decode_qr_code`) and prompts the user to explicitly choose which payload to inspect in the Streamlit UI (`decode_qr_codes`).
+2. **Centralized URL Validation & Domain Parsing (`feature_extractor.py`):**
+   - Uses a single canonical parser (`canonical_split`, `parse_host_structure`, `extract_registrable_domain`) across validation, feature extraction, UI anatomy display, and domain-grouped model training.
+   - Normalizes authority/path backslashes (`\`) and strips control characters, supports IPv4/IPv6 literals, explicit ports, and IDN Punycode (`xn--`), and rejects plain-text payloads (`Hello ARES`) or non-HTTP(S) schemes (`javascript:`, `mailto:`, `WIFI:`).
+3. **Dual Probability Reporting (`adaptive_agent.py`):**
+   - Computes both the **Isotonic-Calibrated Phishing Probability** (mean of the 5 calibrated cross-validation fold estimators) and the **Uncalibrated Base Random Forest Probability** (mean of the 5 uncalibrated base `RandomForestClassifier` fold estimators prior to isotonic mapping).
+   - Validates `model.classes_` (`[0, 1]`), feature order (`24` features), and finite probabilities summing to `1.0`.
+   - Includes a validated pure-NumPy execution engine (`PureNumpyCalibratedClassifier`) that automatically runs if the active Python environment has a different `scikit-learn` version than the serialized artifact (`1.9.1`), preventing `InconsistentVersionWarning` Cython state issues.
+4. **Feedback-Driven Threshold Policy (`adaptive_agent.py`):**
+   - Implements a heuristic, probability-margin threshold controller over `review_threshold` (default `35%`) and `block_threshold` (default `70%`).
+   - Redacts sensitive query parameter values (`token`, `session`, `id`, `password`, `key`, etc.) before writing to `results/feedback.csv`, rejects duplicate and contradictory verdicts for the same normalized URL, and uses cross-platform file locking + atomic `.tmp` replacement.
+   - **Note:** User feedback adjusts the `Review` and `Block` recommendation thresholds; it does **not** retrain the underlying Random Forest classifier.
 
-## Project Overview
+## Requirements & Compatibility
 
-QR codes are widely used to share website links, payment links, and other information. However, attackers can exploit QR codes to direct users to phishing websites that attempt to steal credentials or sensitive information. This technique is commonly known as **quishing (QR-code phishing)**.
+- **Python Version:** Python `3.10`, `3.11`, or `3.12` recommended.
+- **Dependencies (`requirements.txt`):**
+  - `scikit-learn==1.9.1` (matches the serialized `models/model.joblib` artifact)
+  - `pandas>=2.0.0`, `numpy>=1.26.0`, `joblib>=1.3.0`, `opencv-python-headless>=4.8.0`, `Pillow>=10.0.0`, `streamlit>=1.38.0`, `pytest>=8.0.0`, `matplotlib>=3.8.0`
 
-ARES provides a prototype workflow for analyzing QR codes and classifying the URLs they contain. The project combines QR-code decoding, feature extraction, and machine learning in a single pipeline.
+## Installation & Launch Instructions
 
-## Objectives
+### Windows (Clean Checkout)
 
-- Decode QR codes from uploaded image files.
-- Extract useful URL characteristics for classification.
-- Detect potentially suspicious URLs using a trained machine-learning model.
-- Display the prediction and extracted features.
-- Provide a simple interface for testing QR-code images.
-- Evaluate the pipeline using synthetic QR-code test cases.
+#### Option A: One-Command Launcher (`run.bat`)
+From Command Prompt (`cmd.exe`) or PowerShell in the project root:
 
-## System Workflow
-
-1. **QR-code input:** The user supplies an image containing a QR code.
-2. **QR decoding:** The system extracts the encoded text or URL.
-3. **Input validation:** The pipeline checks whether the decoded content begins with `http://` or `https://`.
-4. **Feature extraction:** The URL is converted into numerical and categorical features.
-5. **Model inference:** The saved machine-learning model predicts a class.
-6. **Result display:** The application presents the prediction and, when available, class probabilities and extracted features.
-
-## Technology Stack
-
-| Technology | Purpose |
-|---|---|
-| Python | Main programming language |
-| OpenCV | QR-code decoding and image processing |
-| Pandas | Feature data preparation |
-| NumPy | Numerical operations |
-| Scikit-learn | Machine-learning model and prediction |
-| Joblib | Saving and loading the trained model |
-| Streamlit | Web-based user interface |
-| Jupyter Notebook | Model development and verification |
-| Git and GitHub | Version control and project hosting |
-
-## Project Structure
-
-```text
-ARES/
-├── app.py
-├── feature_extractor.py
-├── qr_utils.py
-├── test_pipeline.py
-├── requirements.txt
-├── README.md
-├── .gitignore
-├── models/
-│   └── model.joblib
-├── notebooks/
-│   ├── ares_model_development.ipynb
-│   └── ares_model_verification.ipynb
-├── tests/
-│   ├── test_feature_extractor.py
-│   └── images/
-│       ├── https_url.png
-│       ├── http_url.png
-│       ├── ip_url.png
-│       ├── plain_text.png
-│       └── query_url.png
-├── results/
-│   └── day4_app_testing.md
-└── data/
+```cmd
+run.bat
 ```
 
-The `data/` directory is intended for datasets used during development. Do not commit large datasets or externally sourced data unless their licensing and redistribution terms permit it.
+`run.bat` checks that `python` and `models\model.joblib` exist, creates `.venv` if missing, installs `requirements.txt`, compiles all `.py` files with `python -m py_compile`, and starts `python -m streamlit run app.py`.
 
-## Dataset
+#### Option B: Manual Virtual Environment Setup on Windows
 
-The model-development dataset contains URL records labeled as benign or phishing.
+```cmd
+python -m venv .venv
+call .venv\Scripts\activate.bat
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python -m py_compile app.py adaptive_agent.py feature_extractor.py qr_utils.py test_pipeline.py train_model.py
+python -m streamlit run app.py
+```
 
-The dataset used during development contains the following classes:
+*(If `scikit-learn==1.9.1` does not have a prebuilt wheel for your specific Windows Python build, install `scikit-learn>=1.5.0` and regenerate the model artifact locally with `python train_model.py`—or run directly using the built-in `PureNumpyCalibratedClassifier` engine.)*
 
-| Class | Label | Number of records |
-|---|---:|---:|
-| Benign | 0 | 820 |
-| Phishing | 1 | 159,244 |
-| **Total** | | **160,064** |
-
-The dataset is highly imbalanced, with substantially more phishing samples than benign samples. This imbalance must be considered when interpreting model performance.
-
-Dataset sources used during development included phishing URL feeds and lists of popular websites. Verify the applicable source terms and include the relevant dataset references in the project report before publication.
-
-## Features Extracted
-
-ARES extracts URL characteristics that may help the model distinguish suspicious URLs from benign ones.
-
-| Feature | Description |
-|---|---|
-| `url_length` | Length of the URL |
-| `num_dots` | Number of dot characters |
-| `has_https` | Indicates whether the URL uses HTTPS |
-| `has_ip` | Indicates whether the hostname contains an IP address |
-| `num_subdirs` | Number of URL path or slash-related components, according to the implemented extraction rule |
-| `num_params` | Number of URL query parameters |
-| `suspicious_words` | Count of configured suspicious terms |
-| `tld` | Extracted top-level domain |
-| `special_char_count` | Count of selected special characters |
-| `digits_count` | Number of numeric digits |
-| `entropy` | Character-distribution entropy of the URL |
-
-**Important:** Feature definitions used during model training must match the definitions used during prediction. In particular, confirm how `num_subdirs`, missing TLD values, and suspicious-word counts are handled before reporting final evaluation results.
-
-## Installation
-
-### 1. Clone the repository
+### macOS & Linux
 
 ```bash
-git clone https://github.com/aryansjainbtech25-sys/02-Adaptive-Reinforcement-based-Endpoint-Security.git
-cd ARES
+chmod +x run.sh
+./run.sh
 ```
 
-### 2. Create a virtual environment
-
-On Linux or macOS:
+Or manually:
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-```
-
-On Windows:
-
-```powershell
-python -m venv .venv
-.venv\Scripts\activate
-```
-
-### 3. Install dependencies
-
-```bash
 python -m pip install --upgrade pip
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
+python -m streamlit run app.py
 ```
 
-Ensure that the dependencies in `requirements.txt` are compatible with the environment used to train and save `models/model.joblib`.
+## Web Dashboard (`app.py`)
 
-## Running the Application
+The Streamlit application provides four tabs:
+1. **1-Click Sample QR Gallery:** Test all 7 built-in QR samples (`test_qr.png`, `https_url.png`, `http_url.png`, `query_url.png`, `ip_url.png`, `sample_benign_qr_code02.png`, and `plain_text.png`) immediately.
+2. **Upload QR Image:** Upload `PNG`, `JPG`, or `JPEG` files up to `5 MB` (enforced both in `.streamlit/config.toml` and in application code).
+3. **Camera Snapshot:** Capture a single still frame from a webcam or phone camera via `st.camera_input` for offline decoding.
+4. **Direct URL Analyzer & QR Encoder:** Analyze any URL string directly and optionally encode a text/URL string into a downloadable QR PNG (with an explicit warning that encoding a URL into a QR code does not verify or make the destination safe).
 
-Start the Streamlit application from the project root:
-
-```bash
-streamlit run app.py
-```
-
-Open the local URL printed in the terminal by Streamlit. Upload a QR-code image and run the analysis.
-
-If the Streamlit interface is not yet implemented in `app.py`, the command will not provide the intended application until that file is completed.
-
-### Running a QR-code test from the command line
-
-The pipeline can be tested with an image file:
+## Command-Line Interface (`test_pipeline.py`)
 
 ```bash
+# Run a batch verification table across all sample QR images in tests/images/:
+python test_pipeline.py --all-samples
+
+# Print a formatted advisory scorecard for a single QR image:
+python test_pipeline.py --pretty tests/images/ip_url.png
+
+# Analyze a URL directly from the command line without an image:
+python test_pipeline.py --pretty --url "https://secure-login.paypal.com.evil.xyz/verify?id=1"
+
+# Output raw JSON for a QR image:
 python test_pipeline.py tests/images/https_url.png
+
+# Allow bare domains that omit http:// or https://:
+python test_pipeline.py --allow-bare-domain tests/images/sample_benign_qr_code02.png
 ```
 
-Other sample images can be tested similarly:
+## 24 Extracted URL Features (`feature_extractor.py`)
+
+| Feature Name | Category | Description |
+|---|---|---|
+| `url_length` | Lexical | Total character length of the URL |
+| `num_dots` | Structure | Number of dot (`.`) separators across the full URL |
+| `has_https` | Protocol | `1` if the URL starts with `https://`, else `0` (transport encryption only; not a trust signal) |
+| `has_ip` | Host Risk | `1` if the parsed hostname is an IPv4 or IPv6 literal, else `0` |
+| `num_subdirs` | Structure | Count of slash (`/`) characters strictly inside the URL path component |
+| `num_params` | Structure | Number of non-empty `&`-separated parameters in the query string |
+| `suspicious_words` | Keywords | Total phishing keyword matches (`susp_token_hits + susp_compound_hits`) after masking benign superwords |
+| `special_char_count` | Lexical | Count of `-`, `_`, `%`, `@`, `=`, `~` characters |
+| `digits_count` | Lexical | Count of numeric digits (`0–9`) across the URL |
+| `entropy` | Lexical | Shannon character-distribution entropy (in bits) |
+| `host_length` | Structure | Character length of the hostname |
+| `path_length` | Structure | Character length of the URL path |
+| `query_length` | Structure | Combined character length of query string and fragment |
+| `subdomain_count` | Structure | Count of subdomain labels left of the registrable domain |
+| `digit_ratio` | Lexical | Ratio of `digits_count` to `url_length` |
+| `susp_token_hits` | Keywords | Standalone token matches from `{login, verify, account, secure, update, password, signin, bank, confirm, wallet, payment}` |
+| `susp_compound_hits` | Keywords | Compound substring matches (e.g., `securebankinggroup`) excluding masked benign words (`accountant`, `databank`, etc.) |
+| `susp_in_subdomain` | Keywords | `1` if any suspicious keyword appears in the subdomain labels left of the registrable domain, else `0` |
+| `is_shortener` | Host Risk | `1` if the registrable domain is in the static `URL_SHORTENERS` set (`bit.ly`, `t.co`, `tinyurl.com`, etc.), else `0` |
+| `is_punycode` | Host Risk | `1` if any hostname label starts with `xn--`, else `0` |
+| `has_port` | Protocol | `1` if an explicit network port is present, else `0` |
+| `has_userinfo` | Host Risk | `1` if `@` appears in the URL authority section, else `0` |
+| `embedded_url_in_query` | Host Risk | `1` if raw, single-encoded (`%3A%2F%2F`), or double-encoded (`%253A%252F%252F`) redirect URLs appear in the query/fragment |
+| `tld_risk` | Host Risk | `1` if the TLD is in the static `HIGH_RISK_TLDS` set (`.xyz`, `.top`, `.zip`, `.click`, `.tk`, etc.), else `0` |
+
+*Feature Importance Note:* In the dashboard and `models/model.joblib`, `feature_importances` come from a reference uncalibrated `RandomForestClassifier` fitted on the training split alongside the 5-fold `CalibratedClassifierCV` ensemble.
+
+## Dataset, Training Reproducibility & Evaluation Scope (`train_model.py`)
+
+### Dataset Construction & Limitations
+- The raw dataset (`data/phishing_features.csv`) contains **820 benign rows** (all bare root domains without schemes) and **159,244 phishing rows** (all containing `http://` or `https://`).
+- To prevent the classifier from learning a trivial protocol-scheme or slash-count shortcut, `train_model.py`:
+  1. Validates the raw CSV schema, binary labels `{0, 1}`, and duplicate counts (`validate_raw_dataset`).
+  2. Expands benign root domains using a **seeded, deterministic** path/query generator (`_rand_token` uses `rng.bytes(n).hex()` from `np.random.default_rng(seed)`) and applies symmetric `50%` scheme-stripping noise to both benign and phishing URLs.
+  3. Splits training, testing (`GroupShuffleSplit`), and 5 calibration folds (`GroupKFold`) grouped by **registrable domain** (`extract_registrable_domain`), programmatically verifying zero domain overlap across splits (`verify_no_group_leakage`).
+- **Important Caveat:** Because benign paths are synthesized from a finite grammar and phishing URLs come from historical feeds, held-out metrics measure generalization to unseen domains within this constructed dataset—they do **not** guarantee detection of zero-day phishing campaigns or real-world QR traffic.
+
+### Held-Out Domain-Grouped Metrics (`results/baseline.json`)
+
+| Metric | Value | Evaluation Context |
+|---|---:|---|
+| **Test Split Size** | `4,693` URLs (`1,441` unseen domains) | `GroupShuffleSplit` (`80/20`), test phishing prevalence `66.44%` (`3,118` phishing, `1,575` benign) |
+| **ROC-AUC** | `0.9902` | Ranking separability across thresholds |
+| **PR-AUC (Average Precision)** | `0.9953` | Precision-recall area at `66.44%` test phishing prevalence |
+| **Brier Score Loss** | `0.0353` | Mean squared probability calibration error after 5-fold isotonic calibration |
+| **Recall (TPR) at 0.50** | `96.57%` | `3,011 / 3,118` phishing URLs detected |
+| **False Positive Rate (FPR) at 0.50** | `7.24%` | `114 / 1,575` synthetic benign URLs flagged |
+| **Precision at 0.50 (Test Split)** | `96.35%` | Measured at the 2:1 phishing-to-benign test ratio |
+| **Bayes Projected Precision @ 1% Phishing Base Rate** | `11.88%` | Conditional projection assuming constant TPR (`96.57%`) and FPR (`7.24%`) |
+
+## Testing & Verification Commands
+
+Run all syntax checks, unit tests, hardening tests, and CLI checks from the project root:
 
 ```bash
-python test_pipeline.py tests/images/http_url.png
-python test_pipeline.py tests/images/ip_url.png
-python test_pipeline.py tests/images/plain_text.png
-python test_pipeline.py tests/images/query_url.png
+# 1. Compile every Python file:
+python -m py_compile app.py adaptive_agent.py feature_extractor.py qr_utils.py test_pipeline.py train_model.py tests/test_feature_extractor.py tests/test_qr.py tests/test_hardening.py
+
+# 2. Run the full test suite (with pytest or standard-library unittest):
+python -m pytest -v
+python -m unittest discover -s tests -v
+
+# 3. Run the CLI batch check across all sample QR images:
+python test_pipeline.py --all-samples
+
+# 4. Retrain the model (requires scikit-learn):
+python train_model.py
 ```
-
-The expected behavior depends on the contents of each QR code. A QR code containing plain text rather than an HTTP or HTTPS URL should be rejected by the URL-validation step.
-
-## Testing
-
-Run the feature-extraction tests from the project root:
-
-```bash
-python -m pytest tests/test_feature_extractor.py -v
-```
-
-If `pytest` is not installed, add it to the development dependencies or install it in the active virtual environment.
-
-Test cases should cover:
-
-- Valid HTTPS URLs.
-- HTTP URLs.
-- URLs containing IP addresses.
-- URLs containing query parameters.
-- QR codes containing plain text.
-- Invalid or unreadable QR-code images.
-- Missing model files and invalid input paths.
-- Consistency between training and inference feature names and order.
-
-Record actual outcomes in `results/day4_app_testing.md`. Do not mark a test as passed unless it has been run successfully.
-
-## Model Evaluation
-
-The project includes notebooks for model development and verification:
-
-- `notebooks/ares_model_development.ipynb`
-- `notebooks/ares_model_verification.ipynb`
-
-Evaluation should include the confusion matrix, precision, recall, F1-score, and balanced accuracy. Precision-recall metrics are especially important because the dataset contains far fewer benign samples than phishing samples.
-
-A perfect score on a random train/test split does not necessarily indicate real-world effectiveness. The dataset may contain source-related patterns or differences in feature construction that allow a model to distinguish the classes without learning robust phishing indicators.
-
-Before presenting final performance claims:
-
-- Verify the feature-extraction formulas.
-- Check for data leakage and source-specific patterns.
-- Evaluate on a separate, representative dataset.
-- Use predicted probabilities—not hard class predictions—to calculate probability-based metrics such as average precision.
-- Document the limitations of the test data.
-
-## Limitations
-
-- The model analyzes URL characteristics rather than the full content or behavior of a website.
-- Legitimate websites can contain suspicious-looking URL patterns.
-- Phishing URLs can be short or appear legitimate.
-- The training dataset is highly imbalanced.
-- Dataset collection methods can introduce bias.
-- A model trained on historical examples may not recognize newly emerging attacks.
-- HTTPS indicates an encrypted connection, not that a website is trustworthy.
-- Class probabilities are model outputs and should not automatically be interpreted as calibrated real-world risk probabilities.
-
-## Future Enhancements
-
-- Improve dataset balance and diversity.
-- Validate the model on independent and up-to-date datasets.
-- Add URL parsing and more robust hostname and domain features.
-- Investigate feature importance and model explainability.
-- Add confidence thresholds and a cautious inconclusive-result category.
-- Improve handling of malformed URLs and unsupported QR-code content.
-- Add logging and reproducible evaluation reports.
-- Explore adaptive learning and reinforcement-learning techniques if supported by a clearly defined environment, feedback signal, and evaluation protocol.
 
 ## Contributors
 
-Developed as part of an AIML Semester 3 academic project at RV University.
+Developed as part of an AIML Semester 3 academic project at **RV University**:
 
-Add the names of the project members and their contributions here.
-
-## Disclaimer
-
-ARES is an educational research prototype. It may produce false positives and false negatives. Always verify URLs independently and follow appropriate cybersecurity practices. A benign classification does not guarantee that a website is safe.
+| Sl. No. | Name | USN |
+|---:|---|---|
+| 1 | Aryan S Jain | `1RUA25CSE0087` |
+| 2 | Ashwin Chandrashekar Naik | `1RUA25CSE0090` |
+| 3 | Ashwin Rajesha Bhat | `1RUA25CSE0091` |
+| 4 | Ashwin Subramaniam | `1RUA25CSE0092` |
