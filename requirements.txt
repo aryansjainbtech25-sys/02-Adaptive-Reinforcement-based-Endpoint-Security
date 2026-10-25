@@ -11,3 +11,4 @@ Pillow>=10.0.0
 streamlit>=1.38.0
 pytest>=8.0.0
 matplotlib>=3.8.0
+xgboost>=2.0.0
