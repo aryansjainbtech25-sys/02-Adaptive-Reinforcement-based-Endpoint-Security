@@ -6,6 +6,10 @@ ARES is an educational and research prototype developed at **RV University** tha
 
 > **Important Security Disclaimer:** ARES is an offline lexical URL analyzer, **not** a full Endpoint Detection and Response (EDR) agent, browser sandbox, or live threat-intelligence scanner. A low estimated phishing probability (`Allow` recommendation) **does not guarantee** that a website is safe, and `https://` indicates encrypted network transport rather than domain legitimacy. Never use ARES as the sole basis for trusting an unknown link.
 
+## Application Screenshot
+
+![ARES dashboard showing the QR-code phishing detector, sample QR gallery, and adaptive threshold policy](screenshots/ares-dashboard.png)
+
 ## System Architecture & Key Capabilities
 
 1. **Bomb-Safe, Multi-Variant QR Decoding (`qr_utils.py`):**
