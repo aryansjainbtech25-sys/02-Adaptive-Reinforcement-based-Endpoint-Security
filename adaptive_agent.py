@@ -454,7 +454,20 @@ def analyze_url_risk_factors(url: str, features: dict, calibrated_phish_prob: fl
 class AdaptiveSecurityAgent:
     """
     Feedback-Driven Adaptive Threshold Policy + Calculus-Optimized Threshold Controller.
-    Supports both heuristic RL update and calculus-based cost minimization.
+    
+    TWO POLICIES (important for CIE-3 viva):
+    1. Heuristic RL policy: _apply_reward_update() — reward-based, NOT gradient descent
+       Uses decaying lr = max(0.015, 0.05/(1+0.05*episodes))
+       Updates thresholds by margin from current probability
+    
+    2. Calculus policy: optimize_with_calculus() — uses gradient descent on SMOOTHED surrogate
+       Original J(θ) = C_FP*FPR(θ) + C_FN*FNR(θ) has stepwise FPR/FNR → dJ/dθ = 0 or undefined
+       Smoothed: FPR̃(θ) = mean(sigmoid((p - θ)/τ)), FNR̃(θ) = mean(sigmoid((θ - p)/τ))
+       J̃(θ) = C_FP*FPR̃ + C_FN*FNR̃ + C_Review*ReviewRatẽ — now differentiable
+       Gradient: dJ̃/dθ = ... (see calculus_threshold.py for full derivation)
+       Finds θ where dJ̃/dθ = 0 and d²J̃/dθ² > 0 (minimum)
+    
+    Constraints: 0.15 ≤ θ_review ≤ 0.60, 0.45 ≤ θ_block ≤ 0.95, θ_block - θ_review ≥ 0.15
     """
 
     DEFAULT_REVIEW_THRESHOLD = 0.35
@@ -606,31 +619,54 @@ class AdaptiveSecurityAgent:
             "cumulative_reward": round(self.cumulative_reward, 2),
         }
 
-    def optimize_with_calculus(self, y_true: np.ndarray, y_proba: np.ndarray, cost_fp: float = 1.0, cost_fn: float = 5.0, cost_review: float = 0.2) -> dict:
+    def optimize_with_calculus(self, y_true: np.ndarray, y_proba: np.ndarray, cost_fp: float = 1.0, cost_fn: float = 5.0, cost_review: float = 0.5) -> dict:
         """
-        Calculus-based threshold optimization.
-        Uses expected cost minimization: C(t) = FP(t)*C_fp + FN(t)*C_fn + Review(t)*C_review
-        Finds t_review, t_block where dC/dt = 0 and d^2C/dt^2 > 0 (minimum).
+        Calculus-based threshold optimization — CIE-3 core.
+        
+        Problem: Minimize expected operational cost C(θ_review, θ_block)
+        C = C_FP * FPR̃ + C_FN * FNR̃ + C_Review * ReviewRatẽ
+        
+        Why surrogate: Hard FPR(θ)=mean(1_{p≥θ}) is stepwise → derivative 0 or undefined.
+        Solution: Sigmoid smoothing with temperature τ=0.05:
+          FPR̃(θ) = mean(sigmoid((p-θ)/τ))
+          FNR̃(θ) = mean(sigmoid((θ-p)/τ)) for phishing class
+          ReviewRatẽ = mean(sigmoid((p-θ_review)/τ) * sigmoid((θ_block-p)/τ))
+        
+        Then gradient descent: θ_{k+1} = θ_k - η * dC̃/dθ
+        Stops when |dC̃/dθ| < 1e-4 and d²C̃/dθ² > 0 (minimum, not maximum)
         """
         if not HAS_CALCULUS:
-            raise ImportError("calculus_threshold module not found. Create calculus_threshold.py")
+            raise ImportError("calculus_threshold module not found. Create calculus_threshold.py first")
+        
         result = compute_optimal_thresholds(y_true, y_proba, cost_fp=cost_fp, cost_fn=cost_fn, cost_review=cost_review)
-        # Apply optimized thresholds with gap enforcement
+        
+        # Viva check: verify derivative ≈ 0 and second derivative > 0
+        if HAS_CALCULUS and "validate_thresholds_calculus" in globals():
+            try:
+                check = validate_thresholds_calculus(y_true, y_proba, result["review_threshold"], result["block_threshold"], cost_fp, cost_fn, cost_review)
+                result["derivative_check"] = check
+            except Exception:
+                pass
+        
         with _exclusive_file_lock(self.lock_path):
             self._load_or_initialize_state()
             self.review_threshold = float(result["review_threshold"])
             self.block_threshold = float(result["block_threshold"])
             self.calculus_metadata = {
-                "method": "calculus_cost_minimization",
+                "method": "sigmoid_smoothed_cost_minimization_with_gradient_descent",
+                "objective": "J_tilde = C_FP*FPR_tilde + C_FN*FNR_tilde + C_Review*ReviewRate_tilde",
                 "cost_fp": cost_fp,
                 "cost_fn": cost_fn,
                 "cost_review": cost_review,
                 "optimal_cost": result["optimal_cost"],
                 "derivative_check": result.get("derivative_check", {}),
+                "temperature_tau": result.get("tau", 0.05),
                 "optimized_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "is_minimum_proven": result.get("derivative_check", {}).get("is_minimum", False),
             }
             self._sanitize_thresholds()
             self._save_state()
+        
         return {
             "review_threshold": self.review_threshold,
             "block_threshold": self.block_threshold,
