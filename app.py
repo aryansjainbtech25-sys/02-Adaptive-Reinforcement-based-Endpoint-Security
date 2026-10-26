@@ -169,7 +169,7 @@ with st.sidebar:
         st.caption("Minimizes $C(t_r,t_b)=C_{FP}FPR + C_{FN}FNR + C_{review}ReviewRate$ via $dC/dt=0$, $d^2C/dt^2>0$")
         with st.expander("Optimize with Calculus (v3.0)", expanded=False):
             c_fp = st.slider("C_FP (false positive cost)", 0.5, 2.0, 1.0, key="c_fp")
-            c_fn = st.slider("C_FN (false negative cost)", 1.0, 10.0, 3.0, key="c_fn")
+            c_fn = st.slider("C_FN (false negative cost)", 1.0, 10.0, 5.0, key="c_fn")  # was 3.0
             c_rev = st.slider("C_Review cost", 0.1, 1.0, 0.5, key="c_rev")
             if st.button("∫ Compute Optimal Thresholds", use_container_width=True):
                 np.random.seed(42)
