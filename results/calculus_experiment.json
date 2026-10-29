@@ -2,7 +2,7 @@
   "baseline": {
     "review": 0.35,
     "block": 0.7,
-    "cost": 0.38727212250919363,
+    "cost": 0.3807721225091936,
     "rates": {
       "fpr": 0.0717628705148206,
       "fnr": 0.058142594054196264,
@@ -18,20 +18,25 @@
   "optimized": {
     "review_threshold": 0.6,
     "block_threshold": 0.75,
-    "optimal_cost": 0.367636,
+    "optimal_cost": 0.361136,
     "optimal_cost_smoothed": 0.418707,
     "derivative_check": {
       "first_derivative_review": -0.160825,
       "first_derivative_block": 1.550729,
       "is_critical_point": false,
+      "grad_tol": 0.01,
       "second_derivative_review": 0.484839,
       "second_derivative_block": 19.328268,
+      "cross_derivative_review_block": -0.070477,
+      "hessian_det": 9.36614,
+      "is_minimum_along_each_axis": true,
       "is_minimum": true,
       "bayes_optimal_single_threshold": 0.1667,
-      "calculus_principle": "Sigmoid smoothing: FPR\u0303=mean(sigmoid((p-\u03b8)/\u03c4)), d/d\u03b8 sigmoid = -sigmoid(1-sigmoid)/\u03c4, Minimum where dC=0 and d\u00b2C>0",
+      "calculus_principle": "Minimum where |\u2207C|<grad_tol and Hessian positive definite",
       "gradient_descent_iterations": 29,
       "learning_rate": 0.05,
-      "temperature_tau": 0.05
+      "temperature_tau": 0.05,
+      "stopped_by": "step"
     },
     "rates_at_optimum": {
       "fpr": 0.0328,
@@ -50,7 +55,14 @@
       "review": 0.5
     },
     "tau": 0.05,
+    "grad_tol": 0.01,
+    "grid_fallback_used": false,
     "history": [
+      [
+        0.3,
+        0.45,
+        0.28643835533177014
+      ],
       [
         0.32040943559786234,
         0.4704094355978623,
@@ -185,11 +197,6 @@
         0.5957723014475749,
         0.7457723014475749,
         0.4130022202009173
-      ],
-      [
-        0.6,
-        0.75,
-        0.41870652138007575
       ],
       [
         0.6,
