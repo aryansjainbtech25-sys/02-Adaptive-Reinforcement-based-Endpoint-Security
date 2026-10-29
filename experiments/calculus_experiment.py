@@ -56,3 +56,6 @@ def _clean(d):
 cleaned = _clean(output)
 Path(PROJECT_DIR / "results" / "calculus_experiment.json").write_text(js.dumps(cleaned, indent=2))
 print(js.dumps(cleaned, indent=2))
+
+if __name__ == "__main__":
+    main()
