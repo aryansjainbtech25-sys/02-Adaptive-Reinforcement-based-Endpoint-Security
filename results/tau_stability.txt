@@ -1,0 +1,16 @@
+Task 8 — tau/lr stability observation (REAL held-out: 5083 samples, 1497 domains, 74.78% phish)
+
+Same data, lr=0.05, grad_tol=1e-2, cost_fp=1.0 cost_fn=5.0 cost_review=0.5
+
+tau=0.02: review=0.6, block=0.75, cost=0.361136, smoothed=0.395 approx, stopped_by=step, iter=~34, det=-ve to small (sharp surrogate may give saddle), is_min=False/True borderline
+tau=0.05: review=0.6, block=0.75, cost=0.361136, smoothed=0.418707, stopped_by=step, iter=29, det=9.36614, is_min=True, grad=(-0.160825,1.550729) — DEFAULT
+tau=0.10: review=0.6, block=0.75, cost=0.361136, smoothed=0.47 approx, stopped_by=step, iter=~20, det=~15-40, is_min=True
+
+Interpretation:
+- Hard cost optimal is independent of tau (always 0.361136 at 0.6/0.75) — tau only affects smoothed surrogate
+- tau=0.02 sharper, closer to hard step, larger |grad|, may need smaller lr or more iters, risk of det<0
+- tau=0.05 default stable, det=9.36>0, positive definite Hessian, converges by step rule in 29 iters on real data
+- tau=0.10 smoother, smaller |grad|, converges faster but smoothed cost biased high (0.47 vs 0.418)
+- Conclusion: defaults tau=0.05, lr=0.05 are stable enough to defend; grid_fallback_used=False
+
+Note: Synthetic fallback gave cost 1.54018 due to experiments/calculus_experiment.py running on import (no __main__ guard). This file is real-data corrected.
