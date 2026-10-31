@@ -49,11 +49,6 @@ suspicious_words = [
     "payment",
 ]
 
-suspicious_pattern = re.compile(
-    "(?:" + "|".join(re.escape(word) for word in suspicious_words) + ")",
-    re.IGNORECASE,
-)
-
 # Common English words containing a suspicious keyword substring that are benign
 BENIGN_SUPERWORDS = (
     "accountant",
