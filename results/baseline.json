@@ -12,34 +12,34 @@
         "duplicate_urls": 0
       },
       "random_seed": 42,
-      "sklearn_version": "1.5.2",
+      "sklearn_version": "1.9.1",
       "n_train": 17057,
       "n_train_domains": 5985,
       "n_test": 5083,
       "n_test_domains": 1497,
       "test_phishing_prevalence": 0.7478,
-      "roc_auc": 0.9929,
-      "pr_auc": 0.9976,
-      "brier": 0.0297,
-      "precision": 0.9827,
+      "roc_auc": 0.9931,
+      "pr_auc": 0.9977,
+      "brier": 0.0302,
+      "precision": 0.9833,
       "f1_score": 0.9707,
-      "tpr": 0.959,
-      "fpr": 0.0499,
+      "tpr": 0.9584,
+      "fpr": 0.0484,
       "confusion_matrix": [
         [
-          1218,
-          64
+          1220,
+          62
         ],
         [
-          156,
-          3645
+          158,
+          3643
         ]
       ],
       "precision_at_prevalence": {
-        "0.5": 0.9505,
-        "0.05": 0.5027,
-        "0.01": 0.1625,
-        "0.001": 0.0189
+        "0.5": 0.952,
+        "0.05": 0.5105,
+        "0.01": 0.1668,
+        "0.001": 0.0195
       },
       "xgboost_params": {
         "objective": "binary:logistic",
