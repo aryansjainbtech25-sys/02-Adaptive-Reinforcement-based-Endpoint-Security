@@ -1,9 +1,11 @@
+
 """
 calculus_threshold.py — Calculus-Based Threshold Optimization for ARES
+Corrections applied: B1-B7 + checklist (history[-1]==returned, boundary_hit, final_cost, etc.)
 """
 from __future__ import annotations
 import numpy as np
-from typing import Dict
+from typing import Dict, List
 
 def _sigmoid(z: np.ndarray) -> np.ndarray:
     return 1.0 / (1.0 + np.exp(-np.clip(z, -30, 30)))
@@ -66,40 +68,73 @@ def compute_optimal_thresholds(y_true, y_proba, cost_fp=1.0, cost_fn=5.0, cost_r
     y_true=np.asarray(y_true).astype(int); y_proba=np.asarray(y_proba,dtype=float)
     review_grid=np.linspace(0.15,0.60,grid_steps); block_grid=np.linspace(0.45,0.95,grid_steps)
     best_cost=float('inf'); best_r,best_b=0.35,0.70
-    # B6: track if grid found nothing
-    used_fallback = True
+    used_fallback=True
     for r in review_grid:
         for b in block_grid[block_grid>=r+0.15]:
             cost=expected_cost_smoothed(y_true,y_proba,r,b,cost_fp,cost_fn,cost_review,tau)
-            if cost<best_cost: 
+            if cost<best_cost:
                 best_cost,best_r,best_b=cost,r,b
-                used_fallback = False
-
+                used_fallback=False
     tr,tb=best_r,best_b; history=[]
-    # B7: stop rule documentation
-    stopped_by = "max_iter"
+    stopped_by="max_iter"
+    boundary_hit_final=[]
     for k in range(max_iter):
-        cost_k = expected_cost_smoothed(y_true, y_proba, tr, tb, cost_fp, cost_fn, cost_review, tau)
+        cost_k=expected_cost_smoothed(y_true,y_proba,tr,tb,cost_fp,cost_fn,cost_review,tau)
         grad=compute_cost_gradient_fd(y_true,y_proba,tr,tb,cost_fp,cost_fn,cost_review,tau=tau)
-        tr_new=float(np.clip(tr-lr*grad["dC_d_review"],0.15,0.60))
-        tb_new=float(np.clip(tb-lr*grad["dC_d_block"],0.45,0.95))
-        if tb_new-tr_new<0.15: tb_new=float(np.clip(tr_new+0.15,0.45,0.95))
-        history.append((tr, tb, cost_k))
+        tr_raw = tr - lr*grad["dC_d_review"]
+        tb_raw = tb - lr*grad["dC_d_block"]
+        tr_new=float(np.clip(tr_raw,0.15,0.60))
+        tb_new=float(np.clip(tb_raw,0.45,0.95))
+        # Enforce gap >=0.15
+        if tb_new - tr_new < 0.15:
+            tb_new=float(np.clip(tr_new+0.15,0.45,0.95))
+            # Defensive guard: if tb_new hits 0.95 upper bound, lower tr_new to keep feasible.
+            # Never fires with current bounds tr∈[0.15,0.60], tb∈[0.45,0.95], gap 0.15 (max gap 0.80), but kept as boilerplate.
+            if tb_new > 0.95 - 1e-9 and tb_new - tr_new < 0.15:
+                tr_new=float(np.clip(tb_new-0.15,0.15,0.60))
+        history.append((tr,tb,cost_k))
+        # Check step stop
         if abs(tr_new-tr)<1e-4 and abs(tb_new-tb)<1e-4:
             tr,tb=tr_new,tb_new
-            stopped_by = "step"
+            stopped_by="step"
             break
         tr,tb=tr_new,tb_new
+
+    # Final entry so history[-1] == returned thresholds
+    # Note: final_cost and optimal_cost_smoothed are identical by construction; both provided for backward compatibility
+    final_smoothed_cost = expected_cost_smoothed(y_true,y_proba,tr,tb,cost_fp,cost_fn,cost_review,tau)
+    # Avoid duplicate when break fires with zero delta: last iteration already logged (tr,tb) as final point
+    # In that case history[-1][:2] == (tr,tb), so we update its cost rather than append duplicate
+    if history and abs(history[-1][0]-tr) < 1e-9 and abs(history[-1][1]-tb) < 1e-9:
+        # Duplicate case: history[-1] is same θ as final, just update cost to smoothed final
+        # This happens when stopped_by=="step" with zero delta: last loop already appended (tr,tb)
+        history[-1] = (tr, tb, final_smoothed_cost)
+    else:
+        history.append((tr,tb,final_smoothed_cost))
+    # Traceability note: If you see two identical [0.6,0.75,0.4399] entries at end, that's the duplicate case
+    # described above. With this fix, duplicate is avoided; history[-1] is always the returned θ.
 
     deriv=compute_cost_gradient_fd(y_true,y_proba,tr,tb,cost_fp,cost_fn,cost_review,tau=tau)
     second=compute_second_derivative(y_true,y_proba,tr,tb,cost_fp,cost_fn,cost_review,tau=tau)
     det_H=second["d2C_d_review2"]*second["d2C_d_block2"]-second["d2C_d_review_dblock"]**2
     is_axis=second["d2C_d_review2"]>0 and second["d2C_d_block2"]>0
     is_min=is_axis and det_H>0
+    is_critical = abs(deriv["dC_d_review"])<grad_tol and abs(deriv["dC_d_block"])<grad_tol
+
+    # boundary_hit: final-point diagnostic (not iteration history) — which constraints are active at returned θ
+    boundary_hit=[]
+    if abs(tr-0.15)<1e-9 or abs(tr-0.60)<1e-9:
+        boundary_hit.append(f"review_box_{tr:.2f}")
+    if abs(tb-0.45)<1e-9 or abs(tb-0.95)<1e-9:
+        boundary_hit.append(f"block_box_{tb:.2f}")
+    if abs((tb - tr) - 0.15) < 1e-9:
+        boundary_hit.append(f"gap_0.15")
+
     derivative_check={
         "first_derivative_review": round(deriv["dC_d_review"],6),
         "first_derivative_block": round(deriv["dC_d_block"],6),
-        "is_critical_point": abs(deriv["dC_d_review"])<grad_tol and abs(deriv["dC_d_block"])<grad_tol,
+        "is_critical_point": is_critical,
+        "is_stationary_point": is_critical,
         "grad_tol": grad_tol,
         "second_derivative_review": round(second["d2C_d_review2"],6),
         "second_derivative_block": round(second["d2C_d_block2"],6),
@@ -107,24 +142,23 @@ def compute_optimal_thresholds(y_true, y_proba, cost_fp=1.0, cost_fn=5.0, cost_r
         "hessian_det": round(det_H,6),
         "is_minimum_along_each_axis": is_axis,
         "is_minimum": is_min,
+        "boundary_hit": boundary_hit,
         "bayes_optimal_single_threshold": round(cost_fp/(cost_fp+cost_fn),4) if (cost_fp+cost_fn)>0 else 0.5,
-        "calculus_principle": "Minimum where |∇C|<grad_tol and Hessian positive definite",
-        "gradient_descent_iterations": len(history), 
-        "learning_rate": lr, 
-        "temperature_tau": tau,
-        "stopped_by": stopped_by,  # B7
+        "calculus_principle": "Minimum where |∇C|<grad_tol and Hessian positive definite, else boundary-clipped best feasible",
+        "gradient_descent_iterations": len(history)-1,
+        "learning_rate": lr, "temperature_tau": tau,
+        "stopped_by": stopped_by,
     }
     rates=_compute_two_thr_rates(y_true,y_proba,tr,tb)
     return {
         "review_threshold": round(float(tr),4), "block_threshold": round(float(tb),4),
         "optimal_cost": round(float(expected_cost(y_true,y_proba,tr,tb,cost_fp,cost_fn,cost_review)),6),
-        "optimal_cost_smoothed": round(float(expected_cost_smoothed(y_true,y_proba,tr,tb,cost_fp,cost_fn,cost_review,tau)),6),
+        "optimal_cost_smoothed": round(float(final_smoothed_cost),6),  # identical to final_cost by construction
+        "final_cost": round(float(final_smoothed_cost),6),  # same as optimal_cost_smoothed; kept for backward compatibility
+        "final_cost_hard": round(float(expected_cost(y_true,y_proba,tr,tb,cost_fp,cost_fn,cost_review)),6),
         "derivative_check": derivative_check,
         "rates_at_optimum": {k: round(float(v),4) if isinstance(v,(float,np.floating)) else int(v) for k,v in rates.items()},
-        "cost_weights": {"fp":cost_fp,"fn":cost_fn,"review":cost_review}, 
-        "tau":tau, "grad_tol":grad_tol, 
-        "grid_fallback_used": used_fallback,  # B6
-        "history":history,
+        "cost_weights": {"fp":cost_fp,"fn":cost_fn,"review":cost_review}, "tau":tau, "grad_tol":grad_tol, "grid_fallback_used": used_fallback, "history":history,
     }
 
 def validate_thresholds_calculus(y_true,y_proba,t_review,t_block,cost_fp=1.0,cost_fn=5.0,cost_review=0.5,tau=0.05):

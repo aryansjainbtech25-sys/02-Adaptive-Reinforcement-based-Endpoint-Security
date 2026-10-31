@@ -40,7 +40,7 @@
       ],
       "bayes_optimal_single_threshold": 0.1667,
       "calculus_principle": "Minimum where |\u2207C|<grad_tol and Hessian positive definite, else boundary-clipped best feasible",
-      "gradient_descent_iterations": 30,
+      "gradient_descent_iterations": 29,
       "learning_rate": 0.05,
       "temperature_tau": 0.05,
       "stopped_by": "step"
@@ -209,11 +209,6 @@
         0.5937904825732752,
         0.7437904825732752,
         0.43114619878929056
-      ],
-      [
-        0.6,
-        0.75,
-        0.43994209280287067
       ],
       [
         0.6,
