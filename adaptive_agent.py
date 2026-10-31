@@ -1,5 +1,7 @@
 from __future__ import annotations
-
+# At top of adaptive_agent.py
+import xgboost  # noqa: F401 — preload to avoid double-load in unpickler
+import scipy.sparse  # noqa: F401
 from contextlib import contextmanager
 import csv
 import json
