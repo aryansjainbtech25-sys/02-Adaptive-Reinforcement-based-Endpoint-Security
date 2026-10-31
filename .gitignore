@@ -30,3 +30,10 @@ __pycache__/
 results/feedback.csv
 results/rl_policy_state.json
 .pytest_cache/
+
+# ARES training backups — do not commit
+*.bak
+*.joblib.bak
+*.json.bak
+models/*.joblib
+results/*.json
