@@ -3,9 +3,10 @@ train_model.py — Deterministic, Domain-Grouped Training & Evaluation Pipeline 
 MIGRATED: Random Forest -> XGBoost + Preserved 5-fold Isotonic Calibration
 """
 from __future__ import annotations
-
+import math
 import json
 import shutil
+import sys
 import warnings
 from pathlib import Path
 import numpy as np
@@ -30,6 +31,26 @@ SEGMENTS = [
 ]
 PARAM_KEYS = ["q","page","id","ref","utm_source","utm_medium","lang","sort","v","t","sessionid","next"]
 EXTS = ["", "", "", ".html", ".php", ".aspx", ".pdf", ".jpg"]
+
+def _json_safe(obj):
+    """Recursively convert NaN/Inf/np types to JSON-safe values — T5 fix for strict JSON"""
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(x) for x in obj]
+    if isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+        return obj
+    if isinstance(obj, (np.floating, np.integer)):
+        if isinstance(obj, np.floating) and (np.isnan(obj) or np.isinf(obj)):
+            return None
+        return float(obj) if isinstance(obj, np.floating) else int(obj)
+    if isinstance(obj, np.ndarray):
+        return _json_safe(obj.tolist())
+    if isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    return obj
 
 def validate_raw_dataset(df: pd.DataFrame) -> dict:
     required_cols = {"url", "label"}
@@ -213,6 +234,8 @@ def train_and_save(seed: int = 42, backup_existing: bool = True) -> dict:
         "raw_dataset_summary": dataset_summary,
         "random_seed": seed,
         "sklearn_version": sklearn.__version__,
+        "numpy_version": np.__version__,  # T6: reproducibility
+        "python_version": f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",  # T6
         "n_train": int(len(ytr)),
         "n_train_domains": int(gtr.nunique()),
         "n_test": int(len(yte)),
@@ -246,8 +269,10 @@ def train_and_save(seed: int = 42, backup_existing: bool = True) -> dict:
     MODEL_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     joblib.dump(bundle, MODEL_OUT_PATH)
     BASELINE_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    BASELINE_OUT_PATH.write_text(json.dumps({"baseline": {"test": metrics}}, indent=2), encoding="utf-8")
-    print(json.dumps(metrics, indent=2))
+    # T5: convert NaN/Inf to None for strict JSON
+    baseline_safe = _json_safe({"baseline": {"test": metrics}})
+    BASELINE_OUT_PATH.write_text(json.dumps(baseline_safe, indent=2), encoding="utf-8")
+    print(json.dumps(_json_safe(metrics), indent=2))
     return metrics
 
 if __name__ == "__main__":

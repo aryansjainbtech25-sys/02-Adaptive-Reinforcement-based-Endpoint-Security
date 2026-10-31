@@ -22,7 +22,24 @@ from feature_extractor import (
 )
 
 # Updated for XGBoost migration
-EXPECTED_ARTIFACT_SKLEARN_VERSION = "1.5.2"
+# Updated for XGBoost migration — baseline.json sklearn 1.9.1 py3.14 (was 1.5.2)
+# This is fallback only; load_model_bundle prefers artifact's own _sklearn_version
+EXPECTED_ARTIFACT_SKLEARN_VERSION = "1.9.1"
+
+def _to_json_safe(obj):
+    import numpy as np
+    if isinstance(obj, dict):
+        return {k: _to_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_to_json_safe(x) for x in obj]
+    if isinstance(obj, (np.floating, np.integer)):
+        return float(obj) if isinstance(obj, np.floating) else int(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.bool_, bool)):
+        return bool(obj)
+    return obj
+
 
 # Try to import calculus module (new)
 try:
@@ -338,6 +355,10 @@ def load_model_bundle(model_path: str | Path, allow_external_path: bool = False,
     return bundle
 
 def compute_model_probabilities(bundle: dict, df: pd.DataFrame) -> dict:
+    # Single-row assumption — per-URL inference; batch should use model.predict_proba directly
+    # Task 6: guard against accidental batch passing (would silently use row 0 only)
+    if len(df) != 1:
+        raise ValueError(f"compute_model_probabilities expects a single-row DataFrame (1 URL), got {len(df)} rows. For batch, iterate or use model.predict_proba directly.")
     model = bundle["model"]
     label_mapping = bundle["label_mapping"]
     classes = [int(c) for c in model.classes_]
@@ -380,12 +401,18 @@ def compute_model_probabilities(bundle: dict, df: pd.DataFrame) -> dict:
             str(label_mapping[0]): round(cal_benign, 6),
             str(label_mapping[1]): round(cal_phish, 6),
         },
-        "uncalibrated_rf_probabilities": {
+        # Task 6: _rf is legacy naming (RandomForest era, now XGBoost) — provide new name + keep alias
+        "uncalibrated_probabilities": {
+            str(label_mapping[0]): round(uncal_benign, 6),
+            str(label_mapping[1]): round(uncal_phish, 6),
+        },
+        "uncalibrated_rf_probabilities": {  # legacy alias for backward compat
             str(label_mapping[0]): round(uncal_benign, 6),
             str(label_mapping[1]): round(uncal_phish, 6),
         },
         "calibrated_phishing_probability": cal_phish,
-        "uncalibrated_rf_phishing_probability": uncal_phish,
+        "uncalibrated_phishing_probability": uncal_phish,  # new name
+        "uncalibrated_rf_phishing_probability": uncal_phish,  # legacy alias
     }
 
 def inspect_url_anatomy(url: str) -> dict:
@@ -492,14 +519,40 @@ class AdaptiveSecurityAgent:
         self._load_or_initialize_state()
 
     def _sanitize_thresholds(self) -> None:
+        """
+        Enforce feasible box + gap constraint, unified with calculus_threshold.py.
+
+        Box: 0.15 ≤ r ≤ 0.60, 0.45 ≤ b ≤ 0.95
+        Gap: b - r ≥ 0.15
+
+        Projection rule (same as calculus_threshold.compute_optimal_thresholds):
+        1. Clip to box first
+        2. If gap violated, prefer pushing b up (preserves review sensitivity)
+        3. Only lower r if b already at ceiling 0.95 (matches checklist: lower tr_new if tb>0.95)
+
+        See also: calculus_threshold.py _project_feasible / gap handling comment.
+        """
         r, b = self.review_threshold, self.block_threshold
         if not (np.isfinite(r) and np.isfinite(b)):
             self.diagnostics.append("Repaired non-finite threshold values back to defaults (0.35, 0.70).")
             r, b = self.DEFAULT_REVIEW_THRESHOLD, self.DEFAULT_BLOCK_THRESHOLD
+
+        # Box clip (same as calculus optimizer)
         r = float(np.clip(r, 0.15, 0.60))
-        b = float(np.clip(max(b, r + self.MIN_GAP), 0.45, 0.95))
+        b = float(np.clip(b, 0.45, 0.95))
+
+        # Gap projection — unified rule
         if b - r < self.MIN_GAP:
-            r = float(np.clip(b - self.MIN_GAP, 0.15, 0.60))
+            # Prefer pushing b up, matching calculus_threshold.py
+            if r + self.MIN_GAP <= 0.95:
+                b = r + self.MIN_GAP
+            else:
+                # b at ceiling, lower r (checklist: lower tr_new if tb>0.95)
+                r = float(np.clip(b - self.MIN_GAP, 0.15, 0.60))
+                # Re-check after lowering r (edge case when r hits floor)
+                if b - r < self.MIN_GAP:
+                    b = float(np.clip(r + self.MIN_GAP, 0.45, 0.95))
+
         self.review_threshold, self.block_threshold = round(r, 4), round(b, 4)
 
     def _load_or_initialize_state(self) -> None:
@@ -521,6 +574,7 @@ class AdaptiveSecurityAgent:
             except Exception as exc:
                 self.diagnostics.append(f"Malformed state file {self.state_json_path.name} ({exc}); rebuilding from valid feedback.csv rows.")
         if not loaded_from_json and self.feedback_csv_path.exists():
+            # Best-effort replay: no lock; a concurrent writer may cause a single row to be skipped. Single-user app; acceptable.
             self.review_threshold = self.DEFAULT_REVIEW_THRESHOLD
             self.block_threshold = self.DEFAULT_BLOCK_THRESHOLD
             self.total_episodes = 0
@@ -642,15 +696,21 @@ class AdaptiveSecurityAgent:
         
         result = compute_optimal_thresholds(y_true, y_proba, cost_fp=cost_fp, cost_fn=cost_fn, cost_review=cost_review)
         
-        # Viva check: verify derivative ≈ 0 and second derivative > 0
-        if HAS_CALCULUS and "validate_thresholds_calculus" in globals():
+        # Viva check: secondary validation — DO NOT overwrite primary derivative_check
+        # BUGFIX #1: preserve boundary_hit, grad_tol, stopped_by, is_stationary_point from compute_optimal_thresholds
+        if HAS_CALCULUS:
             try:
-                check = validate_thresholds_calculus(y_true, y_proba, result["review_threshold"], result["block_threshold"], cost_fp, cost_fn, cost_review)
-                result["derivative_check"] = check
-            except Exception:
-                pass
+                secondary_check = validate_thresholds_calculus(
+                    y_true, y_proba,
+                    result["review_threshold"], result["block_threshold"],
+                    cost_fp, cost_fn, cost_review
+                )
+                result["derivative_check_validator"] = secondary_check
+            except Exception as exc:
+                result["derivative_check_validator"] = {"error": str(exc)}
         
         with _exclusive_file_lock(self.lock_path):
+            # Discard any unsaved in-memory state; the agent is the single source of truth and state is saved after each mutation.
             self._load_or_initialize_state()
             self.review_threshold = float(result["review_threshold"])
             self.block_threshold = float(result["block_threshold"])
@@ -661,10 +721,17 @@ class AdaptiveSecurityAgent:
                 "cost_fn": cost_fn,
                 "cost_review": cost_review,
                 "optimal_cost": result["optimal_cost"],
-                "derivative_check": result.get("derivative_check", {}),
+                "optimal_cost_smoothed": result.get("optimal_cost_smoothed", result.get("optimal_cost")),
+                "optimal_cost_hard": result.get("final_cost_hard", result.get("optimal_cost_hard", result.get("optimal_cost"))),  # 2.2: use final_cost_hard
+                "derivative_check": _to_json_safe(result.get("derivative_check", {})),  # 2.5 JSON-safe
+                "derivative_check_validator": _to_json_safe(result.get("derivative_check_validator", {})),  # 2.5 np->float
                 "temperature_tau": result.get("tau", 0.05),
                 "optimized_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "is_minimum_proven": result.get("derivative_check", {}).get("is_minimum", False),
+                "hessian_positive_definite": result.get("derivative_check", {}).get("is_minimum", False),  # 2.1 renamed: local PD flag, not global optimality proof
+                "is_minimum_proven": result.get("derivative_check", {}).get("is_minimum", False),  # legacy alias — deprecated, use hessian_positive_definite
+                "boundary_hit": result.get("derivative_check", {}).get("boundary_hit", []),
+                "is_stationary_point": result.get("derivative_check", {}).get("is_stationary_point", False),
+                "stopped_by": result.get("derivative_check", {}).get("stopped_by", "unknown"),
             }
             self._sanitize_thresholds()
             self._save_state()
@@ -673,7 +740,11 @@ class AdaptiveSecurityAgent:
             "review_threshold": self.review_threshold,
             "block_threshold": self.block_threshold,
             "optimal_cost": result["optimal_cost"],
+            "optimal_cost_smoothed": result.get("optimal_cost_smoothed", result.get("optimal_cost")),
+            "optimal_cost_hard": result.get("final_cost_hard", result.get("optimal_cost_hard", result.get("optimal_cost"))),
             "calculus_metadata": self.calculus_metadata,
+            "derivative_check": _to_json_safe(result.get("derivative_check", {})),
+            "derivative_check_validator": _to_json_safe(result.get("derivative_check_validator", {})),
         }
 
     def _inspect_existing_votes(self, normalized_url: str) -> set[str]:
@@ -711,6 +782,7 @@ class AdaptiveSecurityAgent:
             raise ValueError("false_negative is invalid when recommended action is already Block.")
         safe_url = redact_url_for_storage(url)
         with _exclusive_file_lock(self.lock_path):
+            # Discard any unsaved in-memory state; the agent is the single source of truth and state is saved after each mutation.
             self._load_or_initialize_state()
             prior_verdicts = self._inspect_existing_votes(safe_url)
             if user_verdict in prior_verdicts:
