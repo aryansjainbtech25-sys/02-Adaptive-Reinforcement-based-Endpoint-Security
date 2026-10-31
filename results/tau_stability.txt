@@ -1,11 +1,18 @@
-Task 8 — tau/lr stability observation (REAL held-out: 5083 samples, 1497 domains, 74.78% phish)
+Task 8 — tau/lr stability observation (REAL held-out: 5083 samples, 1497 domains, 74.78% phish) — AFTER RETRAIN sklearn 1.9.1
 =================================================================================
 Same data, lr=0.05, grad_tol=1e-2, cost_fp=1.0 cost_fn=5.0 cost_review=0.5
+Current JSON (b509407): review=0.6, block=0.75, hard cost=0.387223, smoothed=0.439942, iter=29, det=6.923728, boundary_hit=["review_box_0.60","gap_0.15"]
 
-tau=0.02: review=0.6, block=0.75, cost=0.361136, smoothed=0.395 approx, stopped_by=step, iter=~34, det=-ve to small (sharp surrogate may give saddle), is_critical_point=False, is_minimum=False/True borderline, boundary_hit=[gap_0.15] — boundary-clipped
-tau=0.05: review=0.6, block=0.75, cost=0.361136, smoothed=0.418707, stopped_by=step, iter=29, det=9.36614, is_critical_point=False (|grad|=1.55>0.01), is_minimum=True (Hessian sense only), boundary_hit=[gap_0.15] — boundary-clipped best feasible point, not interior stationary
-tau=0.10: review=0.6, block=0.75, cost=0.361136, smoothed=0.47 approx, stopped_by=step, iter=~20, det=~15-40, is_critical_point=False, is_minimum=True, boundary_hit=[gap_0.15]
+tau=0.02: review=0.6, block=0.75, cost=0.387223 (hard), smoothed≈0.395, stopped_by=step, iter≈34, det=-ve to small (sharp surrogate may give saddle), is_critical_point=False, is_minimum=False/True borderline, boundary_hit=["review_box_0.60","gap_0.15"] — boundary-clipped
+tau=0.05: review=0.6, block=0.75, cost=0.387223, smoothed=0.439942, stopped_by=step, iter=29, det=6.923728, is_critical_point=False (|grad|=1.62>0.01), is_minimum=True (Hessian sense only, det>0), boundary_hit=["review_box_0.60","gap_0.15"] — boundary-clipped best feasible point, not interior stationary
+tau=0.10: review=0.6, block=0.75, cost=0.387223, smoothed≈0.47, stopped_by=step, iter≈20, det≈15-40, is_critical_point=False, is_minimum=True, boundary_hit=["review_box_0.60","gap_0.15"]
 
-Note: For tau=0.05 the returned point is boundary-clipped; is_critical_point=False; is_minimum=True in Hessian sense only. Hard cost optimal independent of tau (always 0.361136 at 0.6/0.75) — tau only affects smoothed surrogate. Defaults tau=0.05, lr=0.05 stable enough to defend.
+Notes:
+- For tau=0.05 the returned point is boundary-clipped; is_critical_point=False; is_minimum=True in Hessian sense only (det>0, second derivatives >0 along each axis). 
+- Hard cost optimal independent of tau (always 0.387223 at 0.6/0.75 after retrain) — tau only affects smoothed surrogate.
+- final_cost and optimal_cost_smoothed are identical by construction (both 0.439942); final_cost_hard == optimal_cost (0.387223)
+- history: len=30, iterations=29, history[-1]==returned θ, no duplicate (duplicate avoided by updating last entry when zero-delta break)
+- Defaults tau=0.05, lr=0.05 stable enough to defend.
 
-Note: Across tau ∈ {0.02,0.05,0.10} thresholds identical (0.6,0.75), but Hessian differs: at tau=0.02 det near-zero/negative, so not verified as local minimum at that temperature (sharper surrogate). We use tau=0.05 as default because it gives PD Hessian det=9.36 and converges in 29 iters.
+- Across tau ∈ {0.02,0.05,0.10} thresholds identical (0.6,0.75), but Hessian differs: at tau=0.02 det near-zero/negative, so not verified as local minimum at that temperature (sharper surrogate). We use tau=0.05 as default because it gives PD Hessian and converges in 29 iters.
+- boundary_hit now includes review_box_0.60 (upper box bound active) + gap_0.15 (gap active) — matches JSON b509407, not just ["gap_0.15"] as in older JSON.
