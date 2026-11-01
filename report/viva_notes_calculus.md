@@ -529,3 +529,112 @@ Status: PASS ✅ — PIPELINE ALIGNED.
 - Commits pushed to origin/main: 2fd1907, 27d50dd etc.
 
 Remaining manual: v1.4 - report.docx — add T2-T4, F2-F4, Task 4/5, Task 6, MAX_SIDE/MAX_PIXELS, Q9 RGBA, heuristic policy terminology.
+
+
+## App.py Stage B — Issues A1-A11 — Fixed
+
+### A1 — Calculus Panel Synthetic Data (BLOCKING — Truthfulness)
+
+Before:
+```python
+np.random.seed(42)
+y_true = np.array([0]*500 + [1]*500)
+y_proba = np.concatenate([np.random.beta(2,5,500), np.random.beta(5,2,500)])
+```
+
+Problem: Demo invents data, thresholds shown to user do not match results/calculus_experiment.json (0.60/0.75). Examiner clicking button sees different thresholds → concludes report false.
+
+Fix — Option A (recommended, implemented in commit 12ba41d):
+```python
+@st.cache_data(show_spinner="Loading held-out data for calculus optimizer...")
+def get_heldout_data_for_calculus(data_path, model_path):
+    from train_model import build_dataset
+    from sklearn.model_selection import GroupShuffleSplit
+    bundle = load_model_bundle(model_path)
+    df_full = build_dataset(data_path, seed=42)
+    gss = GroupShuffleSplit(n_splits=1, test_size=0.20, random_state=42)
+    _, test_idx = next(gss.split(df_full, groups=df_full["group"]))
+    df_test = df_full.iloc[test_idx]
+    y_true = df_test["label"].to_numpy()
+    probas = bundle["model"].predict_proba(df_test[feature_names])[:,1]
+    return y_true, probas
+
+y_true, y_proba = get_heldout_data_for_calculus(DATA_PATH, MODEL_PATH)
+result = compute_optimal_thresholds(y_true, y_proba, ...)
+```
+
+Verification:
+```
+test size: 5083 expected 5083
+Review 0.60 Block 0.75 matches calculus_experiment.json
+```
+
+Status: PASS ✅ — fixed in 12ba41d
+
+### A2 — np.random.seed(42) Global Seeding
+
+Global seeding in Streamlit app mutates random state for downstream components. Fragile.
+
+Fix: Removed global seed entirely — real data path uses GroupShuffleSplit(random_state=42) local, no global np.random.seed.
+
+Verification:
+```bash
+grep -n "np.random.seed" app.py
+# empty
+```
+
+Status: PASS ✅
+
+### A3 — Unused expected_cost Import
+
+Before: `from calculus_threshold import compute_optimal_thresholds, expected_cost` — expected_cost unused.
+
+Fix: `from calculus_threshold import compute_optimal_thresholds` only.
+
+Verification:
+```bash
+grep -n "expected_cost" app.py
+# empty
+```
+
+Status: PASS ✅
+
+### A4 — enable_demo_feedback Help Text (Optional)
+
+Before: `help="Allows verdicts to adjust thresholds"` — does not mention files.
+
+After:
+```python
+enable_demo_feedback = st.checkbox(
+    "Enable local demo threshold updates", value=True,
+    help="When enabled, verdict buttons write query-redacted records to results/feedback.csv and update thresholds in results/rl_policy_state.json (persists across sessions). Disable to make demo read-only. Use Reset button to restore defaults (35%/70%)."
+)
+```
+
+Verification: hover checkbox → tooltip visible.
+
+Status: PASS ✅
+
+### A8 & A11 — Report Documentation (No Code Change)
+
+A8 — JSON export vs feedback CSV:
+
+"The JSON export includes the full URL (user-controlled download for local analysis); the feedback CSV stores the redacted URL (privacy-preserving). This is a deliberate privacy/utility trade-off — export is user's own copy, feedback log is shared/persisted and therefore redacted."
+
+A11 — Demo persistence:
+
+"The demo persists feedback to results/rl_policy_state.json; a reset button restores defaults (35%/70%). Thresholds shown in the app are the current persisted state, not necessarily the calculus-optimised values (0.60/0.75) from results/calculus_experiment.json. This reflects adaptive learning in production — thresholds evolve with user feedback."
+
+Why: honest scope, prevents examiner confusion when thresholds differ after feedback.
+
+Status: PASS ✅ — report only
+
+### A5-A7, A9-A10 — No Change Required
+
+- A5 duplicate evaluate_policy — correct as-is (re-evaluates to match current thresholds after feedback)
+- A6 fp_disabled already_done logic — correct (feedback off → all disabled)
+- A7 feedback loop — correct
+- A9 ip_url.png TEST-NET-1 RFC5737 — demo only, fine
+- A10 test_qr.png google.com — legitimate, fine
+
+Overall app.py: functionally correct, A1 truthfulness fixed, A2/A3 cosmetic fixed, A4 help text improved.
