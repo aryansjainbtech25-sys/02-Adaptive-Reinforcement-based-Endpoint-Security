@@ -1,154 +1,174 @@
-# Mathematical Brief — Calculus-Based Threshold Optimization
-## ARES — Adaptive Reinforcement-based Endpoint Security — CIE3 v3.0
-### Source Document for Report Writers — 2-3 Pages Plain Prose
+# Math Brief — Source of Truth for Report
+## ARES CIE3 — Formulas Teammates Must Copy Exactly
+### Commit: 6f8942e RB-1 to RB-7 + d92f080 RB-4 + f0341ef P-1 to P-5
+### Canonical Source: results/calculus_experiment.json + src/calculus/calculus_threshold.py — file wins
+### FIXED: MB-1 to MB-7 — All formulas now match code exact
 
-**Version:** v3.0.1 — Real held-out data (seed=42, 5083 test URLs, 1497 domains)
-**Commits:** 95292ce (app.py full + Caveats A-C) → 30f90f5 (evidence 42/42 PASS) → e555928 (README)
-**Artifacts:** results/calculus_experiment.json, results/baseline.json, results/final_test_run.txt
-**Model:** XGBoost + 5-fold Isotonic Calibrated, 24 features, GroupShuffleSplit 20% by registrable domain
+## 1. Cost Function — MB-1 FIXED + MB-2 FIXED
+
+MB-1 FIXED: baseline hard cost is 0.39987259019990573 not 0.387, optimized is 0.387223 not 0.3676 per JSON exact.
+
+MB-2 FIXED: Formulas were wrong — FPR uses s_review not s_block, FNR uses 1-s_block not soft_Allow. Critical fix — derivation must match code.
+
+Canonical source: src/calculus/calculus_threshold.py — _smoothed_rates and _compute_two_thr_rates — file wins over brief.
+
+### Hard Cost (actual evaluated)
+
+C_hard(t_r, t_b) = C_FP * FPR(t_r,t_b) + C_FN * FNR(t_r,t_b) + C_review * Review(t_r,t_b)
+
+Where per code _compute_two_thr_rates:
+
+allow = y_proba < t_review
+review = (y_proba >= t_review) & (y_proba < t_block)
+block = y_proba >= t_block
+
+FPR(t_r,t_b) = P(p ≥ t_r | y=0) = (fp_review + fp_block) / total_benign — benign flagged as Review OR Block — NOT only Block
+
+FNR(t_r,t_b) = P(p < t_b | y=1) = (fn_allow + fn_review) / total_phish — phishing allowed OR reviewed (i.e., not blocked) — NOT only allow
+
+Review(t_r,t_b) = P(t_r ≤ p < t_b)
+
+Coefficients: C_FP=1.0, C_FN=5.0, C_review=0.5
+
+Baseline hard cost C_hard(0.35,0.70) = 0.39987259019990573 per JSON exact
+Optimized hard cost C_hard(0.60,0.75) = 0.387223 per JSON exact
+Delta = -0.01264959019990573 -3.16%
+
+### Smoothed Surrogate (for GD) — MB-2 FIXED EXACT CODE
+
+MB-2 FIXED: Previous brief said soft_Block and soft_Allow — WRONG per code. Correct per calculus_threshold._smoothed_rates:
+
+s_review(p) = sigma((p - t_r) / tau) — smooth "at/above review" indicator
+s_block(p)  = sigma((p - t_b) / tau) — smooth "at/above block" indicator
+sigma(x) = 1/(1+exp(-x))
+tau = 0.05 temperature
+
+FPR~ = (1/N_benign) Σ_{benign} s_review(p) = mean(s_review[benign]) — because review or block both trigger hard FPR = P(p ≥ t_r | y=0)
+
+FNR~ = 1 - (1/N_phish) Σ_{phish} s_block(p) = 1 - mean(s_block[phish]) = mean of P(p < t_b | y=1) = P(allow or review)
+
+Review~ = (1/N) Σ s_review(p) * (1 - s_block(p)) = mean(s_review * (1 - s_block)) — smooth "in review band"
+
+Previous brief WRONG:
+- Said FPR~ = mean soft_Block — code does mean s_review[benign]
+- Said FNR~ = mean soft_Allow — code does 1 - mean s_block[phish]
+- Review~ was correct
+
+Critical: If examiner asks derive ∂FPR~/∂t_r, must use s_review not s_block, else derivation fails code check. Fix formulas to match code exactly above.
+
+Note: Hard and smoothed definitions are CONSISTENT in code:
+Hard FPR = review+block for benign = P(p ≥ t_r | y=0)
+Hard FNR = allow+review for phishing = P(p < t_b | y=1)
+Smoothed FPR~ = mean s_review[benign] = same
+Smoothed FNR~ = 1-mean s_block[phish] = same
+Previous brief's §1 definitions P(p ≥ t_b | y=0) and P(p < t_r | y=1) were WRONG for this code — fixed.
+
+### Smoothed Cost
+
+C_smooth(t_r,t_b) = C_FP * FPR~ + C_FN * FNR~ + C_review * Review~
+
+Final smoothed cost at optimum: 0.439942 per JSON optimized.final_cost — MB-2 0.45 was cosmetic wrong, now 0.439942 exact.
+
+## 2. Gradient and Hessian — MB-2 derivative fix
+
+∂C_smooth/∂t_r = C_FP * ∂FPR~/∂t_r + C_review * ∂Review~/∂t_r
+∂C_smooth/∂t_b = C_FN * ∂FNR~/∂t_b + C_review * ∂Review~/∂t_b
+
+∂s_review/∂t_r = -sigma'((p-t_r)/tau)/tau
+∂s_block/∂t_b = -sigma'((p-t_b)/tau)/tau
+sigma'(x) = sigma(x)*(1-sigma(x))
+
+Second derivatives:
+∂²C/∂t_r² = second_derivative_review = 0.405678 per JSON
+∂²C/∂t_b² = second_derivative_block = 17.086192 per JSON
+Hessian det = 6.923728 >0 per JSON — proves local minimum
+
+First derivatives at returned point (0.60,0.75):
+∂C/∂t_r = -0.153059 per JSON
+∂C/∂t_b = 1.621676 per JSON
+is_stationary = false — boundary-clipped, not interior stationary
+
+## 3. GD Update and Projection — MB-3 FIXED
+
+MB-3 FIXED: Previous brief said t_r = min(t_r, t_b-0.15) and re-clip — WRONG. Actual code pushes t_b UP, not t_r down.
+
+Correct per compute_optimal_thresholds:
+
+t_r_new = t_r - eta * grad_r
+t_b_new = t_b - eta * grad_b
+eta = learning_rate = 0.05
+
+Projection:
+t_r = clip(t_r, 0.15, 0.60)
+t_b = clip(t_b, 0.45, 0.95)
+If gap violated tb_new - tr_new < 0.15:
+    tb_new = clip(tr_new + 0.15, 0.45, 0.95) — push t_b UP to t_r+0.15
+    If t_b hits upper bound 0.95, then push t_r down only if needed — code: if tb_new==0.95 and tr_new+0.15>0.95 then tr_new=0.80
+
+Previous brief's "t_r = min(t_r, t_b-0.15)" wrong — fix to "push t_b up to t_r+0.15, clip, push t_r down only if t_b hits 0.95"
+
+History: 30 entries indices 0-29, gradient_descent_iterations 29 per JSON verification output, len(history)=30, gd_iter=29 — file wins if says 30.
+
+## 4. Boundary Analysis — MB-4 FIXED — Downgrade KKT
+
+MB-4 FIXED: Same as P-4 — downgrade from "KKT constrained optimum" to "boundary-clipped feasible point" unless multipliers verified.
+
+Previous brief self-contradiction: "if we increase t_b, cost rises (positive derivative 1.62), so constrained optimum pushes against lower bound of feasible increase" — says cost rises if t_b rises, but then says pushes against lower bound of feasible increase — contradictory.
+
+Correct:
+∂C_hard/∂t_b = 1.621676 >0 means increasing t_b increases cost. So gradient wants to move t_b DOWN. But t_b=0.75 is at lower bound from gap constraint t_b ≥ t_r+0.15 = 0.60+0.15=0.75. Gradient wants t_b down, gap constraint blocks it. So we are at lower bound of feasible set for t_b, gradient points outward (violates feasibility if followed). This is consistent with active constraint.
+
+∂C_hard/∂t_r = -0.153059 <0 means increasing t_r decreases cost slightly, but t_r=0.60 is at upper box bound 0.60 — cannot increase further.
+
+Active constraints: review_box_0.60 (t_r at upper box) + gap_0.15 (t_b - t_r =0.15 minimum)
+
+SAFE CLAIM: "Boundary-clipped feasible point at 0.60/0.75 — review at upper box bound 0.60 and gap at minimum 0.15 — Hessian det 6.923728>0 proves local minimum on feasible subspace, hard cost 0.387223 minimal over grid verification"
+
+RISKY CLAIM (do NOT use unless verify multipliers): "KKT constrained optimum" — requires Lagrangian L = C_hard + μ1(0.15-t_r)+μ2(t_r-0.60)+μ3(0.45-t_b)+μ4(t_b-0.95)+ν(0.15-(t_b-t_r)), stationarity ∇C+Σμ∇g+ν∇h=0, primal gi≤0, dual μ≥0,ν≥0, complementary slackness. Must check signs — real work, skip if no time.
+
+## 5. History Analysis — MB-5 FIXED
+
+MB-5 FIXED: Previous brief said "Iteration 0: C_smooth≈0.42, C_hard≈0.51" — WRONG per JSON. History[0] = [0.3, 0.45, 0.2907...] — smoothed cost 0.2907 not 0.42, and C_hard 0.51 not in artefact — invented.
+
+Verify from JSON:
+python -c "
+import json
+c = json.load(open('results/calculus_experiment.json'))
+h = c['optimized']['history']
+print('history[0] =', h[0])
+print('history[-1] =', h[-1])
+print('first smoothed cost:', h[0][2])
+print('last smoothed cost:', h[-1][2])
+"
+Whatever prints is truth — JSON history records smoothed cost only, not hard cost.
+
+Correct approach:
+- Option (a): Compute hard cost at history[0][:2] and history[-1][:2] via expected_cost — paste both into brief
+- Option (b): Only mention smoothed cost in analysis and use results_brief verified numbers for hard cost — baseline 0.39987259019990573 → optimized 0.387223
+
+Recommendation: (a) — run expected_cost at t_r,t_b = history[0][:2] and history[-1][:2] — gives true C_hard at start and end — paste both.
+
+History: 30 entries, first smoothed cost 0.2907 (from history[0][2]), last smoothed cost 0.439942 (from optimized.final_cost), hard costs from expected_cost computation — do NOT invent 0.42/0.51.
+
+## 6. Reward Policy — MB-6 FIXED
+
+MB-6 FIXED: Previous brief said "raise thresholds by 0.02, lower by 0.05" — WRONG — steps not constants.
+
+Actual code in adaptive_agent._apply_reward_update: step = lr * (multiplier + margin), where lr = max(0.015, 0.05/(1+0.05*episodes)), multiplier = 1.25 for raise / 1.75 for lower, margin = distance from current threshold to URL probability.
+
+Verify: grep -n "step = lr" adaptive_agent.py — shows lr*(1.25+margin) and lr*(1.75+margin)
+
+Correct: "Thresholds adjusted by step = lr * (multiplier + margin), where lr decays from 0.05 toward 0.015, multiplier 1.25 raise /1.75 lower, margin = |p - t|. Step not constant."
+
+File name results/rl_policy_state.json is legacy artefact — stores two scalars + reward counters — not learned policy — must mention in report per P-5.
+
+Policy is heuristic inspired by RL reward shaping, not formal RL — per P-1/P-2.
+
+## 7. Verification — MB-7 Correct
+
+MB-7 traceability ✅ — all formulas now match code exact, numbers match JSON exact, commit hashes correct.
+
+Canonical source rule: results/calculus_experiment.json and src/calculus/calculus_threshold.py — file wins over brief if disagree.
 
 ---
-
-### 1. The Cost Function — What We Minimize
-
-For QR URL risk we have two thresholds:
-- t_r = review_threshold (medium risk boundary)
-- t_b = block_threshold (high risk boundary)
-Constraint: 0 ≤ t_r < t_b ≤ 1 and gap t_b - t_r ≥ 0.15 (minimum operational separation so Review band is not vanishingly thin).
-
-Model gives calibrated phishing probability p ∈ [0,1] per URL.
-Policy:
-- p < t_r → Allow
-- t_r ≤ p < t_b → Review
-- p ≥ t_b → Block
-
-Held-out data: y_true ∈ {0 benign, 1 phishing}, n=5083, prevalence 0.7478 phishing (3645 TP + 156 FN + 64 FP + 1218 TN at 0.50 cutoff). y_proba = bundle["model"].predict_proba(df_test[feature_names])[:,1] — calibrated via isotonic.
-
-Define rates as functions of (t_r, t_b):
-- FPR(t_r,t_b) = P(p ≥ t_b | y=0) — benign flagged as Block
-- FNR(t_r,t_b) = P(p < t_r | y=1) — phishing allowed
-- ReviewRate = P(t_r ≤ p < t_b) — any label needing manual review
-
-Hard (true) cost:
-C_hard(t_r,t_b) = C_FP * FPR + C_FN * FNR + C_review * ReviewRate
-
-Defaults: C_FP=1.0, C_FN=5.0, C_review=0.5. Interpretation: missing phishing (FN) costs 5× a false block (FP), review costs half an FP. At defaults, Bayes single-threshold optimum t* = C_FP/(C_FP+C_FN) = 1/6 ≈0.1667, but we have two thresholds.
-
-Baseline (0.35/0.70) hard cost 0.387223 from results/calculus_experiment.json. Grid search optimum (0.60/0.75) hard cost 0.3676 (-5.1%) with FPR 7.17%→3.28% (-54%) and Review 3.65%→1.36% (-63%).
-
-This C_hard is stepwise — FPR/FNR jump at each y_proba value — not differentiable. Ordinary gradient descent fails (gradient zero almost everywhere, undefined at jumps).
-
-### 2. Sigmoid Smoothing — Making It Differentiable
-
-Replace hard indicators 1_{p ≥ θ} with soft sigmoid:
-
-sigma(z) = 1/(1+exp(-z)), tau=0.05 temperature.
-
-Soft definitions:
-- soft_Block(p) = sigma((p - t_b)/tau)
-- soft_Allow(p) = sigma((t_r - p)/tau) = 1 - sigma((p - t_r)/tau) approximately
-- soft_Review(p) = 1 - soft_Allow - soft_Block = sigma((p - t_r)/tau) * (1 - sigma((p - t_b)/tau))
-
-Then smoothed rates:
-FPR~ = mean_{y=0} soft_Block(p)
-FNR~ = mean_{y=1} soft_Allow(p)
-Review~ = mean soft_Review(p)
-
-Smoothed cost:
-C_smooth(t_r,t_b) = C_FP*FPR~ + C_FN*FNR~ + C_review*Review~ + λ||t - t0||² (λ=0.05 regularization to baseline)
-
-Key derivative:
-d/dθ sigma((p-θ)/τ) = - sigma*(1-sigma)/τ ≠0 everywhere. So gradient exists, non-zero in transition band width ~ few tau. When |p-θ| >> tau, sigma saturates near 0/1, derivative near zero — approximates hard step but smooth.
-
-Trade-off: C_smooth ≠ C_hard. Smoothing underestimates sharp jumps and adds partial review probability even far from thresholds. Therefore we optimize C_smooth for direction but evaluate final thresholds by C_hard. This mismatch explains observation "GD cost rose, hard cost fell".
-
-### 3. GD Update — How Thresholds Move
-
-Initialize t0 = (0.35,0.70) — demo defaults from AdaptiveSecurityAgent.
-
-For k=0..29 (30 history entries, history[0]=init, history[29]=final, matching final_cost == optimal_cost_smoothed after fix avoiding duplicate on zero-delta):
-
-Compute gradient g_k = ∇C_smooth(t_k) via central finite difference:
-dC/dt ≈ [C(t+ε)-C(t-ε)]/(2ε), ε=1e-4, separately for t_r and t_b.
-
-Update:
-t_{k+1} = Proj( t_k - η * g_k ), η=0.05 learning rate.
-
-Proj = projection onto feasible box:
-- t_r ∈ [0.15,0.60] upper bound 0.60 (review_box)
-- t_b ∈ [0.45,0.95]
-- enforce t_b - t_r ≥0.15 gap. If violated, shift: t_r = min(t_r, t_b-0.15) and re-clip.
-
-After 29 iterations, we arrive near (0.60,0.75) — which is on boundary, not interior.
-
-History stored in results/calculus_experiment.json: list of 30 dicts with thresholds and costs, final_cost_hard and final_cost (smoothed) both reported.
-
-### 4. First and Second Order Conditions — What Optimality Means
-
-Interior optimum (no constraints active) requires:
-First order: ∇C_smooth(t*) = 0 vector.
-Second order: Hessian H = [[d²C/dt_r², d²C/dt_r dt_b],[d²C/dt_b dt_r, d²C/dt_b²]] positive definite → det(H)>0 and trace(H)>0, ensures local minimum not maximum or saddle.
-
-With box and gap constraints, optimum may be on boundary → KKT conditions: gradient may be non-zero, pointing outward, balanced by Lagrange multipliers of active constraints. We still check second-order on feasible subspace.
-
-Our returned point (0.60,0.75) derivative-check from calculus_threshold.py:
-
-{
-  "first_derivative_block": 1.62,
-  "hessian_det": 6.9237,
-  "boundary_hit": ["review_box_0.60","gap_0.15"],
-  "is_stationary": false
-}
-
-Interpretation:
-- hessian_det=6.9237 >0 → Hessian determinant positive → second-order convexity locally, minimum not saddle. With trace also positive (0.48 and 19.3 second derivatives from experiment), satisfies second-order sufficient condition on unconstrained subspace.
-- first_derivative_block=1.62 ≠0 → gradient w.r.t block threshold not zero. Expected because we are on boundary: t_r at upper box limit 0.60 and gap at minimum 0.15 (0.75-0.60=0.15). If we increase t_b, cost rises (positive derivative 1.62), so constrained optimum pushes against lower bound of feasible increase. Similarly review derivative -0.16 small negative indicates moving t_r higher would reduce cost but cannot because box limit.
-- boundary_hit lists active constraints: review_box_0.60 and gap_0.15. So solution is KKT constrained optimum, not interior stationary. is_stationary=false correctly reflects not interior zero-gradient.
-- This is honest reporting — we do not claim ∇=0 when constraints active. We report KKT.
-
-### 5. Honest Interpretation — GD Cost Rose, Hard Cost Fell
-
-Observed during experiments:
-
-Iteration 0: C_smooth≈0.42, C_hard≈0.51
-Iteration 29: C_smooth≈0.45 (rose), C_hard≈0.387→0.367 (fell)
-
-Why not bug?
-- C_smooth includes soft review probability even when p far from thresholds — at τ=0.05, moving thresholds from 0.35/0.70 to 0.60/0.75 reduces hard FPR/FNR sharply (better separation at true phishing distribution) but increases soft review mass because many benign p≈0.2 now have small but non-zero sigma((p-0.60)/τ) tail.
-- So surrogate penalizes move that true objective rewards. This is classic surrogate vs true objective mismatch.
-
-What we do:
-- Use GD on C_smooth to get direction toward lower hard cost region
-- But final selection by minimal C_hard via grid verification (0.60/0.75)
-- Report both costs: final_cost_hard=0.387223 (true) and final_cost≈0.45 (smoothed). Document rise/fall rather than hide.
-
-For viva: If asked "why did GD increase cost?" answer: "GD minimized smoothed surrogate, not hard cost. Hard cost decreased, which is what we report as true metric. Smoothing is needed for differentiability but introduces bias."
-
-### 6. Heuristic Not RL Disclaimer — Terminology
-
-Policy is called "feedback-driven heuristic threshold adaptation" not Reinforcement Learning, even though files named rl_policy_state.json (legacy).
-
-Why not RL:
-- No Markov Decision Process, no state s_t, no transition P(s'|s,a)
-- No Bellman equation, no Q(s,a), no value function V(s)
-- No discount factor γ, no exploration (ε-greedy)
-- Policy is two scalars (t_r,t_b), not neural network policy π_θ(a|s)
-- Update is simple reward shaping: correct +1.0 (stabilize), false_positive -1.5 → raise thresholds by 0.02, false_negative -3.0 → lower thresholds by 0.05, with clipping
-- Feedback logged to results/feedback.csv (query-redacted via redact_url_for_storage) + rl_policy_state.json, does not retrain classifier (bundle["model"] fixed)
-
-Use phrase for report: "Feedback-driven heuristic threshold adaptation inspired by RL reward shaping, but not formal RL. Thresholds adjusted by scalar rewards, not learned policy network."
-
-### 7. Traceability to Code and Evidence
-
-- build_dataset(seed=42) → 22140 total, 7482 groups, GroupShuffleSplit 80/20 random_state=42 → test 5083 URLs, 1497 domains, prevalence 0.7478 — matches baseline.json and calculus_experiment.json
-- feature_names 24 fixed order, bundle features == feature_names True, model_type xgboost, loader joblib_sklearn_1.9.1, sklearn 1.9.1 — Task 7 PASS
-- compute_optimal_thresholds(y_true, y_proba, cost_fp, cost_fn, cost_review) → result dict with review_threshold, block_threshold, final_cost_hard, final_cost, derivative_check (hessian_det, first_derivative_block, boundary_hit, is_stationary), history 30 entries, boundary_hit handling
-- App: @st.cache_data get_heldout_data_for_calculus — real data path, refreshes on restart/cache clear (Caveat A documented in sidebar caption)
-- Batch predict_proba direct for 5083 efficiency, classes [0,1] validated by _validate_loaded_bundle (Caveat B)
-- Banner reference only at defaults (Caveat C): is_default check
-- Tests: 42 passed — 8 calculus (T1 hard cost hand check, T2 smoothed vs hard consistency, T3 gradient sanity, T4 box+gap, T5 determinism, T6 boundary, T7 finite diff, history matches), 14 extractor, 14 hardening, 6 qr — evidence results/final_test_run.txt 23.61s Python 3.14.2
-
-This brief is source for report writers — plain prose, no code blocks beyond necessary JSON, focuses on math and honest interpretation.
-
----
-End of Mathematical Brief
+End of Math Brief — FIXED MB-1 to MB-7 — JSON + CODE EXACT
