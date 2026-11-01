@@ -214,3 +214,20 @@ WHY: Improvement over baseline 0.3999→0.3872 -3.16% came from grid search, NOT
 CORRECT:
 - "Combined grid+GD returns (0.60,0.75) hard 0.3872 — improves over baseline 0.3999 by 3.16% — improvement attributable to grid search, NOT GD — GD is constrained refinement returning feasible boundary point satisfying second-order conditions (hessian_det 6.923728>0) but not improving on grid winner in hard cost."
 
+
+## PB-E — B-5 FINAL — Do NOT claim calculus optimization reduced hard cost without grid vs GD caveat — FINAL 7506878
+
+PROHIBITED:
+- "Calculus optimization reduced the hard cost"
+- "GD optimisation reduced hard cost from 0.3999 to 0.3872"
+- "GD optimization reduced hard cost"
+- "Gradient descent achieved 3.16% improvement"
+- "Calculus optimization reduced hard cost from 0.3999 to 0.3872"
+
+WHY: Grid best [0.3,0.45] hard cost 0.2829 is LOWER than returned [0.6,0.75] hard 0.3872 — GD increased hard cost +36.8% and smoothed +51% — improvement over baseline 0.3999→0.3872 -3.16% came from grid search, NOT GD — GD is constrained refinement returning feasible boundary point.
+
+CORRECT — HONEST:
+- "Combined grid+GD returns (0.60,0.75) hard 0.3872 — improves over baseline 0.3999 by 3.16% — improvement attributable to grid search, NOT GD — GD is constrained refinement returning feasible boundary point satisfying second-order conditions (hessian_det 6.923728>0) but not improving on grid winner in hard cost (grid winner 0.30,0.45 hard 0.2829 lowest)."
+- "Grid best smoothed cost 0.29071968134044274 at (0.3,0.45) hard 0.2829383159770988 — lowest hard cost found — returned point (0.6,0.75) hard 0.38722259534246795 smoothed 0.43994209280287067 — GD increased both metrics during 29 iterations — is_stationary false — first_derivative_block 1.621676."
+- "Do NOT say 'calculus optimization reduced the hard cost' without acknowledging that the grid-search contribution dominates and the GD step increased hard cost from grid winner."
+

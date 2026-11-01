@@ -84,105 +84,51 @@ Correct per MB-B:
 Check JSON: grid_fallback_used = false (grid found winner) — so returned point is best grid point plus GD refinement — combined procedure — fix wording.
 
 
-## 5. History Analysis — MB-A VERIFIED EXACT — b7440be + 2f52c31 + HARD COSTS COMPUTED
 
-MB-A VERIFIED — Hard costs computed via expected_cost on held-out data (5083 URLs, 1497 domains, seed 42):
+## 5. History — MB-A VERIFIED — Grid winner vs GD — Honest — FINAL 7506878
 
-python -c "
-import json
-from pathlib import Path
-from train_model import build_dataset
-from feature_extractor import feature_names
-from sklearn.model_selection import GroupShuffleSplit
-from adaptive_agent import load_model_bundle
-from calculus_threshold import expected_cost
-bundle = load_model_bundle(Path('models/model.joblib'))
-df = build_dataset(Path('data/phishing_features.csv'), seed=42)
-_, te = next(GroupShuffleSplit(n_splits=1, test_size=0.20, random_state=42).split(df, groups=df['group']))
-yte = df.iloc[te]['label'].to_numpy()
-proba = bundle['model'].predict_proba(df.iloc[te][feature_names])[:,1]
-c = json.load(open('results/calculus_experiment.json'))
-h0 = c['optimized']['history'][0]
-hL = c['optimized']['history'][-1]
-print('C_hard at history[0] [0.3,0.45] =', expected_cost(yte, proba, h0[0], h0[1], 1.0, 5.0, 0.5))
-print('C_hard at history[-1] [0.6,0.75] =', expected_cost(yte, proba, hL[0], hL[1], 1.0, 5.0, 0.5))
-print('C_hard at baseline (0.35,0.70) =', expected_cost(yte, proba, 0.35, 0.70, 1.0, 5.0, 0.5))
-print('C_hard at returned (0.60,0.75) =', expected_cost(yte, proba, 0.60, 0.75, 1.0, 5.0, 0.5))
-print('Smoothed at history[0] =', h0[2])
-print('Smoothed at history[-1] =', hL[2])
-"
+Verified via grid search 100x100 linspace 0.15-0.60 review, 0.45-0.95 block, gap 0.15:
 
-VERIFIED OUTPUT:
-C_hard at history[0] [0.3,0.45] = 0.2829383159770988
-C_hard at history[-1] [0.6,0.75] = 0.38722259534246795
-C_hard at baseline (0.35,0.70) = 0.39987259019990573
-C_hard at returned (0.60,0.75) = 0.38722259534246795
-Smoothed at history[0] = 0.29071968134044274
-Smoothed at history[-1] = 0.43994209280287067
+Grid best smoothed cost: 0.29071968134044274
+Grid best (r, b): 0.3 0.45
+Hard cost at grid best: 0.2829383159770988 — LOWEST HARD COST FOUND
+Grid fallback used: false — history[0] equals grid best
 
-Interpretation:
-- history[0] [0.3,0.45]: C_smooth 0.29071968134044274, C_hard 0.2829383159770988 — initial point, both low
-- history[-1] [0.6,0.75]: C_smooth 0.43994209280287067, C_hard 0.38722259534246795 — final boundary-clipped point
-- baseline (0.35,0.70): C_hard 0.39987259019990573 — worse than history[0] and final
-- returned (0.60,0.75): C_hard 0.38722259534246795 = optimized.optimal_cost 0.387223 (rounded)
-
-Critical: C_hard rose from 0.2829 at history[0] to 0.3872 at final — GD on smoothed surrogate increased hard cost from initial point. But baseline 0.3998 is worse than both — so optimization improved over baseline (0.3998→0.3872 -3.16%) but not over initial grid point [0.3,0.45] which had C_hard 0.2829 — why? Because [0.3,0.45] violates gap? Check: gap 0.45-0.3=0.15 exactly minimum — feasible. So why did GD move away? Because smoothed surrogate gradient pointed toward boundary due to tau=0.05 smoothing — hard cost at [0.3,0.45] 0.2829 is actually LOWER than final 0.3872 — this is important for report: GD optimizes smoothed surrogate, not hard cost directly — hard cost at optimum is minimum found by combined grid+GD per JSON, but grid point [0.3,0.45] has lower hard cost — verify grid_search result — may be that [0.3,0.45] was not in grid or had higher smoothed cost so GD moved.
-
-Actually check: history[0] is initial theta from grid_search — grid best per smoothed? If grid best was [0.3,0.45] with smoothed 0.2907 and hard 0.2829, then GD moved to [0.6,0.75] with smoothed 0.4399 and hard 0.3872 — both increased — this suggests GD diverged from hard optimum — but JSON reports optimized.optimal_cost = 0.387223 at the returned point. This is not the minimum hard cost over all visited points — initial grid winner (0.30,0.45) has hard cost 0.2829, which is lower. JSON reports hard cost at point procedure returns, not minimum over search — so [0.3,0.45] with hard 0.2829 should have been returned if optimizing hard directly — but procedure optimizes smoothed, then evaluates hard at returned point — so hard at initial is lower but not returned — this is correct behavior: GD optimizes smoothed, not hard.
-
-For report: State both smoothed and hard at history[0] and history[-1] — explain GD optimizes smoothed surrogate — hard cost reported is at final point — baseline comparison is 0.3998→0.3872 improvement.
-
-Previous invented numbers: "Iteration 0: C_smooth≈0.42, C_hard≈0.51" — WRONG — correct 0.2907 and 0.2829.
-
-MB-A DONE — hard costs pasted.
-
-## 6. Reward Policy — MB-6 FIXED
-
-step = lr * (multiplier + margin), lr = max(0.015, 0.05/(1+0.05*episodes)), multiplier 1.25 raise /1.75 lower, margin = |p - t| — NOT constant 0.02/0.05 — MB-6 FIXED
-
-File rl_policy_state.json legacy artefact — stores two scalars + reward counters — not learned policy — P-5
-
-Policy heuristic inspired by RL reward shaping, not formal RL — P-1/P-2
-
-## 7. Verification — MB-C FIXED — Commit hash + MB-7 traceability
-
-MB-C FIXED — commit hashes inconsistent across three docs:
-
-Previous: prohibitions says 95292ce, results_brief says 6f8942e/c248245/e6d512e, math_brief says 6f8942e/d92f080/f0341ef — four different chains — which is final?
-
-Fix: Each brief should quote final project commit HEAD at top — not hash of brief itself — update all three to:
-
-"Final project commit: b7440be — len=30 gd=29 duplicate False — verified — previous chain 50943b5→d92f080→6f8942e→f0341ef→c248245→e6d512e→95292ce"
-
-And: "Evidence: results/final_test_run.txt 42/42 PASS platform linux Python 3.14.2 pytest-9.2.0 22.44s"
-
-MB-7 traceability ✅ — all formulas now match code exact, numbers match JSON exact, no hedging.
-
-Canonical source rule: results/calculus_experiment.json and src/calculus/calculus_threshold.py — file wins over brief if disagree.
-
----
-End of Math Brief — FIXED MB-A to MB-D + MB-1 to MB-7 — CODE + JSON EXACT — b7440be FINAL
-
-## 5. History — MB-A VERIFIED — Hard costs computed
+History verified b7440be:
+len(history) = 30
+gradient_descent_iterations = 29
+history[0] = [0.3, 0.45, 0.29071968134044274] — C_smooth 0.2907 C_hard 0.2829383159770988 — grid winner
+history[-1] = [0.6, 0.75, 0.43994209280287067] — C_smooth 0.4399 C_hard 0.38722259534246795 — returned
+history[-2] = [0.5937904825732752, 0.7437904825732752, 0.43114619878929056]
+duplicate? False — FIXED
 
 C_hard at history[0] [0.3,0.45] = 0.2829383159770988 — Smoothed 0.29071968134044274
 C_hard at history[-1] [0.6,0.75] = 0.38722259534246795 — Smoothed 0.43994209280287067
 C_hard at baseline (0.35,0.70) = 0.39987259019990573
-C_hard at returned (0.60,0.75) = 0.38722259534246795 = optimized.optimal_cost
+C_hard at returned (0.60,0.75) = 0.38722259534246795 = optimized.optimal_cost 0.387223
 
-Interpretation: GD optimizes smoothed surrogate — hard cost rose 0.2829→0.3872 from initial to final, but baseline 0.3998→0.3872 improved -3.16% — GD moved away from hard optimum [0.3,0.45] toward boundary-clipped point due to smoothing.
+Interpretation — HONEST, no "minimum over procedure":
+JSON reports optimized.optimal_cost = 0.387223 at the returned point. This is not the minimum hard cost over all visited points — initial grid winner (0.30,0.45) has hard cost 0.2829, which is lower. JSON reports hard cost at point procedure returns, not minimum over search.
 
+GD increased both metrics during 29 iterations: C_smooth 0.2907→0.4399 +51%, C_hard 0.2829→0.3872 +36.8% — not descent due to projection onto gap (0.15) and box (0.15-0.60, 0.45-0.95) not preserving descent property — is_stationary false, first_derivative_block 1.621676 >0 wants t_b DOWN but gap blocks at 0.75.
 
-## 6. CRITICAL FINDING — GD increased hard cost — honest story
+Improvement over baseline 0.3999→0.3872 -3.16% came from grid search, NOT GD — GD undid most of grid's benefit — grid best [0.3,0.45] hard 0.2829 lower than returned [0.6,0.75] hard 0.3872.
 
-Verified:
-history[0] [0.3,0.45]: C_hard 0.2829383159770988 C_smooth 0.29071968134044274 — LOWEST HARD COST
-history[-1] [0.6,0.75]: C_hard 0.38722259534246795 C_smooth 0.43994209280287067 — RETURNED
-baseline [0.35,0.70]: C_hard 0.39987259019990573 — WORSE THAN BOTH
+Report must say: Combined grid+GD returns (0.60,0.75) hard 0.3872 — improves over baseline 0.3999 by 3.16% — improvement attributable to grid search, NOT GD — GD is constrained refinement returning feasible boundary point satisfying second-order conditions (hessian_det 6.923728>0, trace 17.49>0, locally strictly convex) but not improving on grid winner in hard cost — report returned point honestly as feasible point satisfying second-order conditions, not hard-cost minimiser.
 
-GD increased both: C_smooth +51% 0.2907→0.4399, C_hard +36.8% 0.2829→0.3872 — not descent due to projection onto gap+box constraints not preserving descent property — is_stationary false, first_derivative_block 1.621676.
+Previous invented numbers: "Iteration 0: C_smooth≈0.42, C_hard≈0.51" — WRONG — correct 0.2907 and 0.2829 — MB-A verified.
 
-Improvement over baseline 0.3999→0.3872 -3.16% came from grid search, NOT GD — GD undid most of grid's benefit — grid best [0.3,0.45] hard 0.2829 lower than returned.
+## 6. CRITICAL FINDING — GD increased hard cost — honest story — 7a60257
 
-Report must say: Combined grid+GD returns (0.60,0.75) hard 0.3872 — improves over baseline 0.3999 by 3.16% — decomposing: grid found (0.30,0.45) best grid point smoothed, hard 0.2829 lowest found — during 29 GD iterations both smoothed and hard increased — GD ended at boundary-clipped feasible point — improvement over baseline attributable to grid search; GD is constrained refinement returning feasible boundary point but not improving on grid winner in hard cost — report returned point honestly as feasible point satisfying second-order conditions, not hard-cost minimiser.
+See §5 above — grid best [0.3,0.45] hard 0.2829 lowest — GD increased to 0.3872 — honest report feasible boundary point not minimiser.
 
+## 7. Verification — MB-C — Commit hash — FINAL 7506878
+
+Final project commit: 7506878849402bfa147d05311bdba2659f6292c6 — len=30 gd=29 duplicate False — previous chain 0b3cc3b→7a60257→d66e2a4→09320bc→b7440be
+
+Evidence: results/final_test_run.txt 42/42 PASS platform linux Python 3.14.2 pytest-9.2.0 22.44s
+
+Canonical source rule: results/calculus_experiment.json and src/calculus/calculus_threshold.py — file wins over brief if disagree.
+
+---
+End of Math Brief — FINAL 7506878 — JSON+CODE EXACT — HONEST — Grid winner 0.3,0.45 hard 0.2829 < returned 0.6,0.75 hard 0.3872
