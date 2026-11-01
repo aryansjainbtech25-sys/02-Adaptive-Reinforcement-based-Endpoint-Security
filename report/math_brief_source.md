@@ -172,3 +172,17 @@ C_hard at returned (0.60,0.75) = 0.38722259534246795 = optimized.optimal_cost
 
 Interpretation: GD optimizes smoothed surrogate — hard cost rose 0.2829→0.3872 from initial to final, but baseline 0.3998→0.3872 improved -3.16% — GD moved away from hard optimum [0.3,0.45] toward boundary-clipped point due to smoothing.
 
+
+## 6. CRITICAL FINDING — GD increased hard cost — honest story
+
+Verified:
+history[0] [0.3,0.45]: C_hard 0.2829383159770988 C_smooth 0.29071968134044274 — LOWEST HARD COST
+history[-1] [0.6,0.75]: C_hard 0.38722259534246795 C_smooth 0.43994209280287067 — RETURNED
+baseline [0.35,0.70]: C_hard 0.39987259019990573 — WORSE THAN BOTH
+
+GD increased both: C_smooth +51% 0.2907→0.4399, C_hard +36.8% 0.2829→0.3872 — not descent due to projection onto gap+box constraints not preserving descent property — is_stationary false, first_derivative_block 1.621676.
+
+Improvement over baseline 0.3999→0.3872 -3.16% came from grid search, NOT GD — GD undid most of grid's benefit — grid best [0.3,0.45] hard 0.2829 lower than returned.
+
+Report must say: Combined grid+GD returns (0.60,0.75) hard 0.3872 — improves over baseline 0.3999 by 3.16% — decomposing: grid found (0.30,0.45) best grid point smoothed, hard 0.2829 lowest found — during 29 GD iterations both smoothed and hard increased — GD ended at boundary-clipped feasible point — improvement over baseline attributable to grid search; GD is constrained refinement returning feasible boundary point but not improving on grid winner in hard cost — report returned point honestly as feasible point satisfying second-order conditions, not hard-cost minimiser.
+
