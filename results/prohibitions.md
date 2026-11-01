@@ -118,6 +118,7 @@ This document lists statements that must NOT appear in report v1.4 or viva_notes
 - Do NOT claim generate_qr_image is safety filter (it's testing utility, warning documented)
 - Do NOT claim multi-QR returns single (fail-closed: raises QRDecodeError, UI prompts choice)
 - Do NOT claim 26 tests (now 42/42)
+- Do NOT quote 0.3676, 0.387223 baseline, -5.1%, 7.17%→3.28% — correct per JSON: baseline 0.39987259019990573 → 0.387223 -3.16%, FPR 0.06942277691107644→0.0343, hessian 6.923728, first_derivative_block 1.621676
 
 ---
 
@@ -130,3 +131,4 @@ This document lists statements that must NOT appear in report v1.4 or viva_notes
 
 ---
 End of Prohibitions
+- Do NOT quote 0.3676, 0.387223 as baseline, -5.1% — correct: baseline 0.39987259019990573 → 0.387223 -3.16% per JSON exact
