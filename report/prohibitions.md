@@ -1,7 +1,7 @@
 # Prohibitions — What NOT to Write in Report — FIXED PB-A to PB-D
 ## ARES CIE3 — Hard Rules — b7440be + 09320bc FINAL — JSON+CODE EXACT
 ### Canonical Source: results/calculus_experiment.json + results/baseline.json + src/calculus/calculus_threshold.py — file wins
-### Final Commit: 09320bc — len=30 gd=29 duplicate False — previous b7440be→2f52c31→50943b5→d92f080→6f8942e→f0341ef
+### Final project commit: 0b3cc3b2a7317a42c39d2c76e03793dd2223ae60 — previous chain 0b3cc3b→7a60257→d66e2a4→09320bc→b7440be→50943b5→d92f080→6f8942e→f0341ef→c248245→e6d512e→95292ce
 ### Evidence: results/final_test_run.txt 42/42 PASS platform linux Python 3.14.2 pytest-9.2.0 22.44s
 
 This document lists statements that must NOT appear in report v1.4 or viva_notes. Each prohibition has reason and correct alternative. All numbers must match JSON exact per verification.

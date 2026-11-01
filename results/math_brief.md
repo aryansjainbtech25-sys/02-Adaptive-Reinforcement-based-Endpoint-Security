@@ -1,6 +1,6 @@
 # Math Brief — Source of Truth for Report — FIXED MB-A to MB-D
 ## ARES CIE3 — Formulas Teammates Must Copy Exactly
-### Commit: b7440be FINAL — len=30 gd=29 duplicate False — previous 50943b5 MB-1 to MB-7
+### Final project commit: 0b3cc3b2a7317a42c39d2c76e03793dd2223ae60 — len=30 gd=29 duplicate False — previous chain 0b3cc3b→7a60257→d66e2a4
 ### Canonical Source: results/calculus_experiment.json + src/calculus/calculus_threshold.py — file wins
 ### FIXED: MB-A history hard costs, MB-B safe claim, MB-C commit hash, MB-D Hessian caveat
 

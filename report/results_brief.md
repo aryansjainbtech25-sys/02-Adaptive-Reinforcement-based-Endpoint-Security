@@ -1,5 +1,5 @@
 # Results Brief — CANONICAL — results/calculus_experiment.json + baseline.json EXACT
-## Commit: 6f8942e RB-1 to RB-7 + f0341ef P-1 to P-5
+## Final project commit: 0b3cc3b2a7317a42c39d2c76e03793dd2223ae60 — len=30 gd=29 duplicate False — baseline.cost 0.39987259019990573 optimized 0.387223
 
 ### 1. Calculus — results/calculus_experiment.json — FILE WINS
 baseline.cost 0.39987259019990573 (0.35/0.70) → optimized.optimal_cost 0.387223 (0.60/0.75) delta -0.01264959019990573 -3.16% final_cost smoothed 0.439942
