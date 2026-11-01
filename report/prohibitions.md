@@ -1,5 +1,6 @@
+Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
+
 # Prohibitions — What NOT to Write in Report
-## Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
 ### Previous chain: b7440be -> 0b3cc3b -> d66e2a4 -> 09320bc -> 5fdc189 — len=30 gd=29 duplicate False
 ### All numbers in this report are traceable to results/calculus_experiment.json and results/baseline.json at commit 5fdc189aac39267cb96f04f4f3e409535be656a5. Test evidence: results/final_test_run.txt (42/42 pass, Python 3.14.2, pytest 9.2.0).
 

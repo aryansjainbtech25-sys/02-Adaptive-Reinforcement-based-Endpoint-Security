@@ -1,3 +1,5 @@
+Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
+
 # Viva Notes — Calculus Threshold Optimization (CIE3) — Final
 
 ## Terminology — RL vs Heuristic Policy (Decided)

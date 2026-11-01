@@ -1,5 +1,6 @@
+Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
+
 # Math Brief — Source of Truth for Report
-## Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
 ### Previous chain: b7440be -> 0b3cc3b -> d66e2a4 -> 09320bc -> 5fdc189 — len=30 gd=29 duplicate False
 ### Canonical Source: results/calculus_experiment.json + src/calculus/calculus_threshold.py — file wins
 ### All numbers in this report are traceable to results/calculus_experiment.json and results/baseline.json at commit 5fdc189aac39267cb96f04f4f3e409535be656a5. Test evidence: results/final_test_run.txt (42/42 pass, Python 3.14.2, pytest 9.2.0).
@@ -110,7 +111,6 @@ Policy heuristic inspired by RL reward shaping, not formal RL — no MDP, no Q-l
 
 ## 7. Verification — MB-C — Commit hash — FINAL 5fdc189aac39267cb96f04f4f3e409535be656a5
 
-Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
 Evidence: results/final_test_run.txt 42/42 PASS platform linux Python 3.14.2 pytest-9.2.0 22.44s
 
 Canonical source rule: results/calculus_experiment.json and src/calculus/calculus_threshold.py — file wins over brief if disagree.

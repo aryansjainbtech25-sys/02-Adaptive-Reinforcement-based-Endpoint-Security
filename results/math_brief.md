@@ -1,6 +1,7 @@
+Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
+
 # Math Brief — Source of Truth for Report — FIXED MB-A to MB-D
 ## ARES CIE3 — Formulas Teammates Must Copy Exactly
-Final project commit: 28ba5bf3a736150f3ecd57002cb2e43712551709 (short: 28ba5bf).
 ### Canonical Source: results/calculus_experiment.json + src/calculus/calculus_threshold.py — file wins
 ### FIXED: MB-A history hard costs, MB-B safe claim, MB-C commit hash, MB-D Hessian caveat
 
@@ -124,7 +125,6 @@ See §5 above — grid best [0.3,0.45] hard 0.2829 lowest — GD increased to 0.
 
 ## 7. Verification — MB-C — Commit hash — FINAL 7506878
 
-<!-- OLD HEADER REMOVED - was Final project commit: 7506878849402bfa147d05311bdba2659f6292c6 — len=30 gd=29 duplicate False — previous chain 0b3cc3b→7a60257→d66e2a4→09320bc→b7440be - see top line -->
 
 Evidence: results/final_test_run.txt 42/42 PASS platform linux Python 3.14.2 pytest-9.2.0 22.44s
 

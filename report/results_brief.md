@@ -1,5 +1,6 @@
+Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
+
 # Results Brief — CANONICAL — results/calculus_experiment.json + baseline.json EXACT
-## Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
 ### Previous chain: 7506878 -> 5fdc189 — len=30 gd=29 duplicate False
 ### Canonical source: results/calculus_experiment.json + results/baseline.json — file wins over brief if disagree
 ### Evidence: results/final_test_run.txt 42/42 PASS platform linux Python 3.14.2 pytest-9.2.0 22.44s
