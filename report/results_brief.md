@@ -1,4 +1,5 @@
-Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189).
+Final project commit: 8f5a437a2348503ca69953e36a81e3941d2550ce (short: 8f5a437). — Original honest finding 5fdc189aac39267cb96f04f4f3e409535be656a5 — len 30 gd 29 duplicate False
+
 
 # Results Brief — CANONICAL — results/calculus_experiment.json + baseline.json EXACT
 ### Previous chain: 7506878 -> 5fdc189 — len=30 gd=29 duplicate False
