@@ -4,7 +4,7 @@ report/math_brief_source.md (formulas)
 report/results_brief.md (numbers)
 report/prohibitions.md (hard rules)
 
-Final project commit: 960dd43275e1a50507238aa4f6e3727b7b228c46 (short: 960dd43)
+Final project commit: 28ba5bf3a736150f3ecd57002cb2e43712551709 (short: 28ba5bf).
 All numbers traceable to results/calculus_experiment.json and results/baseline.json at commit 5fdc189 — test evidence results/final_test_run.txt (42/42 pass, Python 3.14.2, pytest 9.2.0)
 
 The two things most likely to lose marks:
