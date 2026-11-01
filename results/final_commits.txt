@@ -1,0 +1,20 @@
+95292ce Final app.py — preserve all tabs + fix A4 help text + Caveats A-C: cache docs, batch proba docs, banner only shows Reference at defaults (1,5,0.5)
+e87ec5a Final viva_notes 640 lines — add A1 real data fix + A2 seed removal + A3 import cleanup + A4 help text + A8/A11 persistence docs + multi-QR fail-closed + has_https randomisation
+c4af534 Cleanup: remove test_rgba_qr.py (was verification only) — Q9 verified black-on-trans PASS
+12ba41d Fix A1: calculus panel uses real held-out data (5083 test URLs) via cached GroupShuffleSplit — matches calculus_experiment.json 0.60/0.75, removes synthetic Beta + global seed + unused expected_cost
+f4d8819 Final viva_notes 531 lines — add Task4 multi-QR fail-closed + Task5 generate_qr warning + QR offline Q1-Q9 + Task7 alignment
+27d50dd Q9: RGBA black-on-trans PASS, white-on-trans FAIL (inverted QR rare edge case) — offline claim PASS, 42/42 PASS
+2fd1907 Final viva_notes 390 lines — Task5 no dependents (grep empty) + Task6 has_https p_strip=0.5 — 42 PASS
+1e8904a Restore full viva_notes with T1-T8 + F1-F6 + Task5/6 — final 300 lines
+b98dcbb Update viva_notes with Task5 (no dependents) + Task6 (has_https randomisation) — final
+310b7df F1: remove dead suspicious_pattern regex — 14/14 PASS
+6d1674e Update viva_notes with T5-T8 + F1-F4 + heuristic policy terminology
+8f8cc2f Update tau_stability notes to sklearn 1.9.1 retrain (0.387223)
+f05fc81 Add reproducible baseline + calculus results for CIE3
+9319b80 CIE3 T1-T8 + Bug#1 + calculus §2.1/2.2/2.5
+ead2796 T7: ignore *.bak training backups
+b509407 final: calculus traceability (no duplicate history), sys.path fix, adaptive_agent preload fix, notebook Codespace paths, requirements py3.14
+5d7df93 fix traceability: avoid duplicate history on zero-delta, document final_cost==optimal_cost_smoothed, history 30 = iterations 29 + 1
+c8b0d52 retrain sklearn 1.9.1 py3.14, regenerate json with boundary_hit, final_cost, is_stationary
+417c936 Add files via upload
+647e5aa Add files via upload
