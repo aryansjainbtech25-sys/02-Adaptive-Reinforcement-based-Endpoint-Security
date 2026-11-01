@@ -4,7 +4,7 @@ report/math_brief_source.md (formulas)
 report/results_brief.md (numbers)
 report/prohibitions.md (hard rules)
 
-Final project commit: 5fdc189aac39267cb96f04f4f3e409535be656a5 (short: 5fdc189)
+Final project commit: 960dd43275e1a50507238aa4f6e3727b7b228c46 (short: 960dd43)
 All numbers traceable to results/calculus_experiment.json and results/baseline.json at commit 5fdc189 — test evidence results/final_test_run.txt (42/42 pass, Python 3.14.2, pytest 9.2.0)
 
 The two things most likely to lose marks:
@@ -26,4 +26,4 @@ Returned [0.60,0.75] | 0.38722259534246795 | 0.43994209280287067 | GD boundary-c
 
 Do NOT say "calculus optimization reduced hard cost" without acknowledging grid-search dominates and GD step increased hard cost.
 
-Final commit: 5fdc189aac39267cb96f04f4f3e409535be656a5
+Final commit: 960dd43275e1a50507238aa4f6e3727b7b228c46
