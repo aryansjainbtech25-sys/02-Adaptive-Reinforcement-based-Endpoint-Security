@@ -25,7 +25,7 @@ from qr_utils import QRDecodeError, decode_qr_codes, generate_qr_image
 
 # NEW: Calculus module
 try:
-    from calculus_threshold import compute_optimal_thresholds, expected_cost
+    from calculus_threshold import compute_optimal_thresholds
     HAS_CALCULUS = True
 except ImportError:
     HAS_CALCULUS = False
@@ -36,6 +36,7 @@ FEEDBACK_PATH = PROJECT_DIR / "results" / "feedback.csv"
 RL_STATE_PATH = PROJECT_DIR / "results" / "rl_policy_state.json"
 BASELINE_PATH = PROJECT_DIR / "results" / "baseline.json"
 SAMPLE_IMAGES_DIR = PROJECT_DIR / "tests" / "images"
+DATA_PATH = PROJECT_DIR / "data" / "phishing_features.csv"
 
 IMAGE_FILE_TYPES = ["png", "jpg", "jpeg"]
 MAX_IMAGE_SIZE_MB = 5
@@ -82,6 +83,30 @@ st.set_page_config(page_title="ARES — QR Code Phishing Detector — XGBoost + 
 @st.cache_resource(show_spinner="Loading ARES XGBoost calibrated model...")
 def get_cached_bundle(model_path: Path) -> dict:
     return load_model_bundle(model_path)
+
+@st.cache_data(show_spinner="Loading held-out data for calculus optimizer...")
+def get_heldout_data_for_calculus(data_path: Path, model_path: Path):
+    """Load real held-out y_true, y_proba — matches results/calculus_experiment.json. Option A fix for A1."""
+    from train_model import build_dataset
+    from sklearn.model_selection import GroupShuffleSplit
+
+    if not data_path.exists():
+        raise FileNotFoundError(f"Dataset not found: {data_path}")
+    bundle = load_model_bundle(model_path)
+    df_full = build_dataset(data_path, seed=42)
+    # Same split as baseline.json: GroupShuffleSplit test_size=0.20 random_state=42 by group (registrable domain)
+    gss = GroupShuffleSplit(n_splits=1, test_size=0.20, random_state=42)
+    groups = df_full["group"].to_numpy()
+    train_idx, test_idx = next(gss.split(df_full, groups=groups))
+    df_test = df_full.iloc[test_idx]
+    y_true = df_test["label"].to_numpy(dtype=int)
+    # Compute calibrated probabilities via bundle
+    X_test = df_test[feature_names]
+    # Use compute_model_probabilities path
+    df_feat = pd.DataFrame(X_test, columns=feature_names)
+    # Bundle model is CalibratedClassifierCV wrapping XGB — predict_proba returns calibrated
+    probas = bundle["model"].predict_proba(df_feat)[:, 1]
+    return y_true, probas
 
 def run_url_analysis(bundle: dict, url: str, agent: AdaptiveSecurityAgent) -> dict:
     url_features = extract_url_features(url)
@@ -162,23 +187,27 @@ with st.sidebar:
     mcol2.metric("Block At", f"{agent.block_threshold:.0%}", help="High-risk threshold")
     st.caption(f"Episodes: **{agent.total_episodes}** | Score: **{agent.cumulative_reward:+.1f}**")
 
-    # NEW: Calculus optimizer UI
+    # FIXED A1: Calculus optimizer uses real held-out data (Option A)
     if HAS_CALCULUS:
         st.divider()
         st.subheader("∫ Calculus Threshold Optimizer")
-        st.caption("Minimizes $C(t_r,t_b)=C_{FP}FPR + C_{FN}FNR + C_{review}ReviewRate$ via $dC/dt=0$, $d^2C/dt^2>0$")
-        with st.expander("Optimize with Calculus (v3.0)", expanded=False):
+        st.caption("Minimizes $C(t_r,t_b)=C_{FP}FPR + C_{FN}FNR + C_{review}ReviewRate$ via $dC/dt=0$, $d^2C/dt^2>0$ — on real held-out data (seed=42, 5083 test URLs)")
+        with st.expander("Optimize with Calculus (v3.0 — real data)", expanded=False):
             c_fp = st.slider("C_FP (false positive cost)", 0.5, 2.0, 1.0, key="c_fp")
-            c_fn = st.slider("C_FN (false negative cost)", 1.0, 10.0, 5.0, key="c_fn")  # was 3.0
+            c_fn = st.slider("C_FN (false negative cost)", 1.0, 10.0, 5.0, key="c_fn")
             c_rev = st.slider("C_Review cost", 0.1, 1.0, 0.5, key="c_rev")
-            if st.button("∫ Compute Optimal Thresholds", use_container_width=True):
-                np.random.seed(42)
-                y_true = np.array([0]*500 + [1]*500)
-                y_proba = np.concatenate([np.random.beta(2,5,500), np.random.beta(5,2,500)])
-                result = compute_optimal_thresholds(y_true, y_proba, cost_fp=c_fp, cost_fn=c_fn, cost_review=c_rev)
-                st.success(f"Optimal: Review {result['review_threshold']:.2%}, Block {result['block_threshold']:.2%}")
-                st.json(result["derivative_check"])
-                st.session_state["calculus_result"] = result
+            if st.button("∫ Compute Optimal Thresholds (real held-out)", use_container_width=True):
+                try:
+                    y_true, y_proba = get_heldout_data_for_calculus(DATA_PATH, MODEL_PATH)
+                    result = compute_optimal_thresholds(y_true, y_proba, cost_fp=c_fp, cost_fn=c_fn, cost_review=c_rev)
+                    st.success(f"Optimal (real held-out): Review {result['review_threshold']:.2%}, Block {result['block_threshold']:.2%} | Hard cost {result.get('final_cost_hard', result.get('final_cost', 0)):.4f} | Expected 0.60/0.75 from calculus_experiment.json")
+                    st.json(result.get("derivative_check", {}))
+                    if result.get("boundary_hit"):
+                        st.caption(f"Boundary hit: {result['boundary_hit']}")
+                    st.session_state["calculus_result"] = result
+                except Exception as e:
+                    st.error(f"Calculus optimizer failed: {e}")
+                    st.caption("Falling back to synthetic demo is not used — fix dataset path.")
             if "calculus_result" in st.session_state:
                 res = st.session_state["calculus_result"]
                 if st.button(f"Apply {res['review_threshold']:.0%} / {res['block_threshold']:.0%}", use_container_width=True):
