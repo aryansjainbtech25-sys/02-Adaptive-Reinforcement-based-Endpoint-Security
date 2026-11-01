@@ -202,3 +202,15 @@ WHY: Grid best [0.3,0.45] hard cost 0.2829 is LOWER than returned [0.6,0.75] har
 CORRECT:
 - "Combined grid+GD returns (0.60,0.75) hard 0.3872 — improves over baseline 0.3999 by 3.16% — decomposing: grid found (0.30,0.45) best grid point smoothed 0.2907 hard 0.2829 lowest found — during 29 GD iterations both smoothed (0.2907→0.4399) and hard (0.2829→0.3872) increased — GD ended at boundary-clipped feasible point — improvement over baseline attributable to grid search; GD is constrained refinement returning feasible boundary point but not improving on grid winner in hard cost — report returned point honestly as feasible point satisfying second-order conditions, not hard-cost minimiser."
 
+
+## PB-E — B-5 — Do NOT claim calculus optimization reduced hard cost without grid vs GD caveat
+
+PROHIBITED:
+- "Calculus optimization reduced the hard cost"
+- "GD optimization reduced hard cost from 0.3999 to 0.3872"
+
+WHY: Improvement over baseline 0.3999→0.3872 -3.16% came from grid search, NOT GD — GD increased both smoothed 0.2907→0.4399 +51% and hard 0.2829→0.3872 +36.8% from grid winner [0.3,0.45] — grid best hard 0.2829 lower than returned.
+
+CORRECT:
+- "Combined grid+GD returns (0.60,0.75) hard 0.3872 — improves over baseline 0.3999 by 3.16% — improvement attributable to grid search, NOT GD — GD is constrained refinement returning feasible boundary point satisfying second-order conditions (hessian_det 6.923728>0) but not improving on grid winner in hard cost."
+
