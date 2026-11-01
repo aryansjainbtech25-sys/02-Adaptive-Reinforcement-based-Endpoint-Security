@@ -341,3 +341,50 @@ Final Results (sklearn 1.9.1, numpy 2.5.4, python 3.14.2):
 - F2: is_shortener 2.3%, tld_risk 0.96% active — PASS
 - F3/F4: limitations documented — PASS
 - Tests: 42/42 PASS ✅
+
+
+## Task 5 — No Other File Depends on suspicious_pattern (F1 Support)
+
+Command:
+```bash
+grep -rn "suspicious_pattern" . --include="*.py" --include="*.ipynb" --include="*.md"
+```
+
+Before delete:
+```
+./feature_extractor.py:52:suspicious_pattern = re.compile(
+```
+
+After delete (commit 310b7df):
+```
+# (empty for .py files — only viva_notes_calculus.md documentation and .git/logs mention it)
+```
+
+Verified:
+```bash
+grep -rn "suspicious_pattern" . --include="*.py"
+# empty — no Python file depends on it
+
+PYTHONPATH=. python -m pytest tests/ -q
+# 42 passed — no breakage
+```
+
+Status: PASS ✅ — safe to delete, no dependents.
+
+## Task 6 — has_https Randomisation (F6 Follow-up) — Report Only
+
+What code does in train_model.py:
+```python
+def randomise_scheme(url: str, rng: np.random.Generator, p_strip: float = 0.5) -> str:
+    if float(rng.random()) < p_strip:
+        return url.removeprefix("https://").removeprefix("http://")
+    return url
+```
+
+Why: If https:// kept as-is, model could learn has_https as trivial shortcut. By randomising scheme 50% symmetrically across both classes, you force model to use lexical features not just has_https. Its feature-importance should be low by design.
+
+Report sentence:
+
+"has_https was deliberately randomised during dataset construction (train_model.build_dataset / randomise_scheme, p_strip=0.5), stripping scheme from 50% of URLs symmetrically across both classes. This prevents the model from relying on https as a shortcut. Its feature-importance weight should therefore be interpreted as low by design, forcing reliance on lexical and host-based features."
+
+No code change — report only.
