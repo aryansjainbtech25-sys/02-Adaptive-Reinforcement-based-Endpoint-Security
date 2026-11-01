@@ -23,7 +23,7 @@ from feature_extractor import (
 )
 from qr_utils import QRDecodeError, decode_qr_codes, generate_qr_image
 
-# NEW: Calculus module
+# Calculus module — optional
 try:
     from calculus_threshold import compute_optimal_thresholds
     HAS_CALCULUS = True
@@ -86,7 +86,15 @@ def get_cached_bundle(model_path: Path) -> dict:
 
 @st.cache_data(show_spinner="Loading held-out data for calculus optimizer...")
 def get_heldout_data_for_calculus(data_path: Path, model_path: Path):
-    """Load real held-out y_true, y_proba — matches results/calculus_experiment.json. Option A fix for A1."""
+    """
+    FIX A1 — Option A: Real held-out data (not synthetic Beta).
+    Matches results/calculus_experiment.json: 5083 test URLs, seed 42, 20% split.
+    Caveat A: @st.cache_data keys on (data_path, model_path) args, not file mtime.
+    Refreshes on app restart or Streamlit cache clear. Documented in sidebar caption.
+    Caveat B: Batch predict_proba is efficient for 5083 samples. _validate_loaded_bundle
+    confirms classes_ [0,1], so [:,1] is phishing prob. Single-URL path uses
+    compute_model_probabilities (calibrated by label). Both yield same prob.
+    """
     from train_model import build_dataset
     from sklearn.model_selection import GroupShuffleSplit
 
@@ -94,18 +102,13 @@ def get_heldout_data_for_calculus(data_path: Path, model_path: Path):
         raise FileNotFoundError(f"Dataset not found: {data_path}")
     bundle = load_model_bundle(model_path)
     df_full = build_dataset(data_path, seed=42)
-    # Same split as baseline.json: GroupShuffleSplit test_size=0.20 random_state=42 by group (registrable domain)
     gss = GroupShuffleSplit(n_splits=1, test_size=0.20, random_state=42)
     groups = df_full["group"].to_numpy()
-    train_idx, test_idx = next(gss.split(df_full, groups=groups))
+    _, test_idx = next(gss.split(df_full, groups=groups))
     df_test = df_full.iloc[test_idx]
     y_true = df_test["label"].to_numpy(dtype=int)
-    # Compute calibrated probabilities via bundle
-    X_test = df_test[feature_names]
-    # Use compute_model_probabilities path
-    df_feat = pd.DataFrame(X_test, columns=feature_names)
-    # Bundle model is CalibratedClassifierCV wrapping XGB — predict_proba returns calibrated
-    probas = bundle["model"].predict_proba(df_feat)[:, 1]
+    # Batch inference — efficient, validated class order
+    probas = bundle["model"].predict_proba(df_test[feature_names])[:, 1]
     return y_true, probas
 
 def run_url_analysis(bundle: dict, url: str, agent: AdaptiveSecurityAgent) -> dict:
@@ -174,7 +177,12 @@ def decode_and_store(image_bytes: bytes, source_id: str, strict_scheme: bool, bu
 with st.sidebar:
     st.header("🛡 ARES Control Panel")
     strict_http_scheme = st.checkbox("Require explicit http:// or https:// scheme", value=True)
-    enable_demo_feedback = st.checkbox("Enable local demo threshold updates", value=True, help="Allows verdicts to adjust thresholds in results/rl_policy_state.json")
+    # A4 fix: detailed help text
+    enable_demo_feedback = st.checkbox(
+        "Enable local demo threshold updates",
+        value=True,
+        help="When ON: verdict buttons write query-redacted records to results/feedback.csv and update thresholds in results/rl_policy_state.json (persists across sessions). When OFF: demo is read-only, no files written. Use Reset button to restore defaults (35%/70%)."
+    )
     agent = AdaptiveSecurityAgent(feedback_csv_path=FEEDBACK_PATH, state_json_path=RL_STATE_PATH)
     if agent.diagnostics:
         with st.expander("⚠ Policy State Diagnostics", expanded=False):
@@ -187,11 +195,10 @@ with st.sidebar:
     mcol2.metric("Block At", f"{agent.block_threshold:.0%}", help="High-risk threshold")
     st.caption(f"Episodes: **{agent.total_episodes}** | Score: **{agent.cumulative_reward:+.1f}**")
 
-    # FIXED A1: Calculus optimizer uses real held-out data (Option A)
     if HAS_CALCULUS:
         st.divider()
         st.subheader("∫ Calculus Threshold Optimizer")
-        st.caption("Minimizes $C(t_r,t_b)=C_{FP}FPR + C_{FN}FNR + C_{review}ReviewRate$ via $dC/dt=0$, $d^2C/dt^2>0$ — on real held-out data (seed=42, 5083 test URLs)")
+        st.caption("Minimizes $C(t_r,t_b)=C_{FP}FPR + C_{FN}FNR + C_{review}ReviewRate$ via $dC/dt=0$, $d^2C/dt^2>0$ — on real held-out data (seed=42, 5083 URLs, GroupShuffleSplit 20%). Caveat A: refreshes on app restart or cache clear.")
         with st.expander("Optimize with Calculus (v3.0 — real data)", expanded=False):
             c_fp = st.slider("C_FP (false positive cost)", 0.5, 2.0, 1.0, key="c_fp")
             c_fn = st.slider("C_FN (false negative cost)", 1.0, 10.0, 5.0, key="c_fn")
@@ -200,7 +207,12 @@ with st.sidebar:
                 try:
                     y_true, y_proba = get_heldout_data_for_calculus(DATA_PATH, MODEL_PATH)
                     result = compute_optimal_thresholds(y_true, y_proba, cost_fp=c_fp, cost_fn=c_fn, cost_review=c_rev)
-                    st.success(f"Optimal (real held-out): Review {result['review_threshold']:.2%}, Block {result['block_threshold']:.2%} | Hard cost {result.get('final_cost_hard', result.get('final_cost', 0)):.4f} | Expected 0.60/0.75 from calculus_experiment.json")
+                    # Caveat C fix: only show Reference at defaults (1,5,0.5)
+                    is_default = (c_fp == 1.0 and c_fn == 5.0 and c_rev == 0.5)
+                    if is_default:
+                        st.success(f"Optimal (real held-out, {len(y_true)} URLs): Review {result['review_threshold']:.2%}, Block {result['block_threshold']:.2%} | Hard cost {result.get('final_cost_hard', result.get('final_cost', 0)):.4f} | Reference (0.60, 0.75) at defaults (1,5,0.5) — results/calculus_experiment.json")
+                    else:
+                        st.success(f"Optimal (real held-out, {len(y_true)} URLs, costs FP={c_fp}, FN={c_fn}, Rev={c_rev}): Review {result['review_threshold']:.2%}, Block {result['block_threshold']:.2%} | Hard cost {result.get('final_cost_hard', result.get('final_cost', 0)):.4f}")
                     st.json(result.get("derivative_check", {}))
                     if result.get("boundary_hit"):
                         st.caption(f"Boundary hit: {result['boundary_hit']}")
