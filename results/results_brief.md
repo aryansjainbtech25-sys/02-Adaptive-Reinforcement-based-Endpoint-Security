@@ -22,3 +22,14 @@ test_phishing_prevalence 0.7478
 confusion [[1220, 62], [158, 3643]] — TN 1220 FP 62 FN 158 TP 3643
 
 ### 3. Test Status — 42/42 PASS platform linux Python 3.14.2 pytest-9.2.0 22.44s evidence final_test_run.txt
+
+## 4. CRITICAL FINDING — Grid best vs GD — Honest story — 7a60257
+
+Grid best smoothed cost: 0.29071968134044274 at (0.3,0.45) — Hard cost 0.2829383159770988 — LOWEST HARD COST FOUND
+Returned point (0.6,0.75): Smoothed 0.43994209280287067 Hard 0.38722259534246795
+Baseline (0.35,0.70): Hard 0.39987259019990573
+
+GD increased both: Smoothed +51% 0.2907→0.4399, Hard +36.8% 0.2829→0.3872 — not descent due to projection not preserving descent property — is_stationary false, first_derivative_block 1.621676.
+
+Improvement over baseline 0.3999→0.3872 -3.16% came from grid search, NOT GD — GD undid most of grid's benefit — honest report must say combined grid+GD returns feasible boundary point satisfying second-order conditions, not hard-cost minimiser.
+

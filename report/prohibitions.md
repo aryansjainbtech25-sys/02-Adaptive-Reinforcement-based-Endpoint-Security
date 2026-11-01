@@ -189,3 +189,16 @@ Do NOT quote 0.3676, 0.387223 as baseline, -5.1%, 7.17%→3.28%, 5.81%→6.37% �
 
 ---
 End of Prohibitions — FIXED PB-A to PB-D + P-1 to P-5 + RB-1 to RB-7 + MB-1 to MB-7 + MB-A to MB-D — JSON+CODE EXACT — 09320bc FINAL
+
+## PB-E — CRITICAL FINDING — Do NOT claim GD improved cost over grid winner
+
+PROHIBITED:
+- "GD optimisation reduced hard cost from 0.3999 to 0.3872"
+- "GD improved on grid best"
+- "Gradient descent achieved 3.16% improvement"
+
+WHY: Grid best [0.3,0.45] hard cost 0.2829 is LOWER than returned [0.6,0.75] hard 0.3872 — GD increased hard cost +36.8% and smoothed +51% — improvement over baseline 0.3999→0.3872 came from grid search, NOT GD — GD is constrained refinement returning feasible boundary point.
+
+CORRECT:
+- "Combined grid+GD returns (0.60,0.75) hard 0.3872 — improves over baseline 0.3999 by 3.16% — decomposing: grid found (0.30,0.45) best grid point smoothed 0.2907 hard 0.2829 lowest found — during 29 GD iterations both smoothed (0.2907→0.4399) and hard (0.2829→0.3872) increased — GD ended at boundary-clipped feasible point — improvement over baseline attributable to grid search; GD is constrained refinement returning feasible boundary point but not improving on grid winner in hard cost — report returned point honestly as feasible point satisfying second-order conditions, not hard-cost minimiser."
+
