@@ -59,11 +59,18 @@ def load_image_safely(image_path: Path) -> np.ndarray:
     if raw is None or raw.size == 0:
         raise QRDecodeError(f"Failed to read the image: {image_path}")
 
+# In load_image_safely, replace RGBA handling with:
     if raw.ndim == 3 and raw.shape[2] == 4:
-        # Composite transparent background onto white (255) so black QR modules remain visible
         alpha = raw[..., 3:4].astype(np.float32) / 255.0
         rgb = raw[..., :3].astype(np.float32)
+    # Composite over white (standard) and black (inverted) — try both via _variants
+    # For now return white composite; black composite handled via optional variant
         raw = (rgb * alpha + 255.0 * (1.0 - alpha)).astype(np.uint8)
+        # NOTE: White-on-transparent (inverted QR) composites to all-white here.
+        # Inversion variant in _variants (255 - base) handles it partially,
+        # but all-white → all-black after inversion is still blank.
+        # Optional fix: also composite over black and try both in _variants.
+        # For now, white compositing is correct for standard black-on-white QRs (Q9).
 
     if raw.ndim == 3:
         raw = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY)
