@@ -155,6 +155,109 @@ def verify_no_group_leakage(groups: pd.Series, train_idx: np.ndarray, test_idx: 
             if fold_overlap:
                 raise AssertionError(f"Domain leakage detected in calibration fold {fold_num}: {len(fold_overlap)} shared domains.")
 
+def compare_models_cv(X: pd.DataFrame, y: pd.Series, groups: pd.Series, seed: int = 42, n_splits: int = 5) -> dict:
+    """Compare baseline classifiers using identical domain-grouped folds."""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import (
+        average_precision_score, brier_score_loss, f1_score, precision_score,
+        recall_score, roc_auc_score,
+    )
+    from sklearn.model_selection import GroupKFold
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.ensemble import RandomForestClassifier
+    from xgboost import XGBClassifier
+
+    if not (len(X) == len(y) == len(groups)):
+        raise ValueError("X, y, and groups must contain the same number of rows.")
+    if groups.nunique() < n_splits:
+        raise ValueError(f"At least {n_splits} unique domains are required for {n_splits}-fold CV.")
+
+    splitter = GroupKFold(n_splits=n_splits)
+    folds = list(splitter.split(X, y, groups))
+    models = {
+        "Logistic Regression": lambda fold_num, train_idx: make_pipeline(
+            StandardScaler(),
+            LogisticRegression(class_weight="balanced", max_iter=1000, random_state=seed + fold_num),
+        ),
+        "Random Forest": lambda fold_num, train_idx: RandomForestClassifier(
+            n_estimators=300,
+            class_weight="balanced_subsample",
+            random_state=seed + fold_num,
+            n_jobs=-1,
+        ),
+        "XGBoost": lambda fold_num, train_idx: XGBClassifier(
+            n_estimators=400,
+            max_depth=8,
+            learning_rate=0.05,
+            subsample=0.9,
+            colsample_bytree=0.9,
+            min_child_weight=3,
+            scale_pos_weight=(
+                int((y.iloc[train_idx] == 0).sum()) / max(int((y.iloc[train_idx] == 1).sum()), 1)
+            ),
+            random_state=seed + fold_num,
+            n_jobs=-1,
+            eval_metric="logloss",
+            tree_method="hist",
+            verbosity=0,
+        ),
+    }
+
+    results = {}
+    for model_name, make_model in models.items():
+        fold_metrics = []
+        for fold_num, (train_idx, validation_idx) in enumerate(folds):
+            train_groups = set(groups.iloc[train_idx].dropna().unique())
+            validation_groups = set(groups.iloc[validation_idx].dropna().unique())
+            if train_groups & validation_groups:
+                raise AssertionError(f"Domain leakage detected in {model_name} fold {fold_num}.")
+
+            y_train, y_validation = y.iloc[train_idx], y.iloc[validation_idx]
+            if y_train.nunique() != 2 or y_validation.nunique() != 2:
+                raise ValueError(f"Both classes must be present in train and validation data for fold {fold_num}.")
+
+            estimator = make_model(fold_num, train_idx)
+            estimator.fit(X.iloc[train_idx], y_train)
+            probabilities = estimator.predict_proba(X.iloc[validation_idx])[:, 1]
+            predictions = (probabilities >= 0.5).astype(int)
+            fold_metrics.append({
+                "roc_auc": float(roc_auc_score(y_validation, probabilities)),
+                "pr_auc": float(average_precision_score(y_validation, probabilities)),
+                "brier": float(brier_score_loss(y_validation, probabilities)),
+                "precision": float(precision_score(y_validation, predictions, zero_division=0)),
+                "recall": float(recall_score(y_validation, predictions, zero_division=0)),
+                "f1_score": float(f1_score(y_validation, predictions, zero_division=0)),
+            })
+
+        metric_names = fold_metrics[0].keys()
+        results[model_name] = {
+            "fold_metrics": fold_metrics,
+            "summary": {
+                metric: {
+                    "mean": round(float(np.mean([fold[metric] for fold in fold_metrics])), 4),
+                    "std": round(float(np.std([fold[metric] for fold in fold_metrics], ddof=1)), 4),
+                }
+                for metric in metric_names
+            },
+        }
+
+    ranking = sorted(
+        results,
+        key=lambda name: results[name]["summary"]["roc_auc"]["mean"],
+        reverse=True,
+    )
+    return {
+        "protocol": f"{n_splits}-fold GroupKFold by registrable domain; metrics computed on uncalibrated probabilities",
+        "selection_metric": "mean ROC-AUC (descriptive ranking only; final model remains calibrated XGBoost)",
+        "classification_threshold": 0.5,
+        "n_samples": len(X),
+        "n_domains": int(groups.nunique()),
+        "n_splits": n_splits,
+        "ranking_by_mean_roc_auc": ranking,
+        "models": results,
+    }
+
 def train_and_save(seed: int = 42, backup_existing: bool = True) -> dict:
     import joblib
     import sklearn
@@ -178,6 +281,7 @@ def train_and_save(seed: int = 42, backup_existing: bool = True) -> dict:
 
     folds = list(GroupKFold(n_splits=5).split(Xtr, ytr, gtr))
     verify_no_group_leakage(g, tr, te, folds)
+    model_comparison = compare_models_cv(Xtr, ytr, gtr, seed=seed, n_splits=5)
 
     neg = int((ytr == 0).sum())
     pos = int((ytr == 1).sum())
@@ -271,6 +375,7 @@ def train_and_save(seed: int = 42, backup_existing: bool = True) -> dict:
     BASELINE_OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
     # T5: convert NaN/Inf to None for strict JSON
     baseline_safe = _json_safe({"baseline": {"test": metrics}})
+    baseline_safe["cross_validation"] = _json_safe(model_comparison)
     BASELINE_OUT_PATH.write_text(json.dumps(baseline_safe, indent=2), encoding="utf-8")
     print(json.dumps(_json_safe(metrics), indent=2))
     return metrics
