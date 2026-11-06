@@ -21,6 +21,7 @@ from qr_utils import QRDecodeError, decode_qr_code, decode_qr_codes
 from train_model import (
     DATA_PATH,
     build_dataset,
+    compare_models_cv,
     validate_raw_dataset,
     verify_no_group_leakage,
 )
@@ -282,6 +283,30 @@ def test_training_determinism_and_zero_domain_leakage():
     test_idx = np.where(~df1["group"].isin(train_doms))[0]
     verify_no_group_leakage(df1["group"], train_idx, test_idx)
 
+def test_grouped_model_comparison_reports_all_folds_without_domain_leakage():
+    rows = []
+    for domain_id in range(12):
+        for label in (0, 0, 1, 1):
+            rows.append((float(label), float(domain_id % 3), label, f"domain-{domain_id}"))
+    sample = pd.DataFrame(rows, columns=["signal", "domain_signal", "label", "group"])
+
+    comparison = compare_models_cv(
+        sample[["signal", "domain_signal"]],
+        sample["label"],
+        sample["group"],
+        seed=7,
+        n_splits=2,
+    )
+
+    assert comparison["ranking_by_mean_roc_auc"][0] in comparison["models"]
+    assert set(comparison["models"]) == {"Logistic Regression", "Random Forest", "XGBoost"}
+    for result in comparison["models"].values():
+        assert len(result["fold_metrics"]) == 2
+        assert set(result["summary"]) == {
+            "roc_auc", "pr_auc", "brier", "precision", "recall", "f1_score",
+        }
+        assert all("mean" in metric and "std" in metric for metric in result["summary"].values())
+
 
 class TestHardeningSuite(unittest.TestCase):
     def test_all_hardening_checks(self):
@@ -295,6 +320,7 @@ class TestHardeningSuite(unittest.TestCase):
         test_host_dots_vs_path_dots_explanation_accuracy()
         test_inverted_and_multi_qr()
         test_agent_feedback_policy_contradictions_and_recovery()
+        test_grouped_model_comparison_reports_all_folds_without_domain_leakage()
         # Skip test_untrusted_model_path_and_schema_validation here - it has its own skip logic
         # Skip test_streamlit_app_startup_smoke - it execs app.py which triggers xgboost import bug in suite
         test_training_determinism_and_zero_domain_leakage()
